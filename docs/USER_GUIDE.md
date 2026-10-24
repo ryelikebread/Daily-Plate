@@ -101,6 +101,8 @@ Above the results are four filters:
 1. Try the chain name plus the item, or the **All** filter. "Cheeseburger, from fast food" style items are good stand-ins.
 2. Or make it a custom food (Foods → + Custom food) from the nutrition info the chain publishes on its website or in-store. You only do it once; after that it's in your foods.
 
+**Adding several foods in a row**: on the food screen, **Save & add another** saves the food to the meal and immediately reopens the add list for that same meal, so you can add sides, toppings or extras one after another. Press **Save** on the last one.
+
 ### Scanning barcodes
 
 1. On the Diary tab tap **📷 Scan barcode** (or **📷 Scan** inside any meal's + Add window). Allow camera access the first time.

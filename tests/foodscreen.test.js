@@ -129,6 +129,19 @@ function serve() {
   await page.click('#tab-diary details.card summary');
   check(await page.locator('#day-report details.rsec').count() === 5, 'diary day shows the same full report');
 
+  // Save & add another: saves, then reopens the add list for the same meal
+  await page.click('#qa-add');
+  await page.waitForTimeout(300);
+  const mealBefore = await page.textContent('#add-meal-name');
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  check(await page.isVisible('#amount-more'), 'Save & add another is offered for new entries');
+  await page.click('#amount-more');
+  await page.waitForSelector('#add-dialog[open]');
+  check((await page.textContent('#add-meal-name')) === mealBefore, 'add list reopens for the same meal');
+  await page.click('#add-dialog button[value="cancel"], #add-dialog [data-close]').catch(() => page.keyboard.press('Escape'));
+  await page.waitForTimeout(200);
+
   // favorites first; remove from recents
   await page.click('#qa-add');
   await page.waitForTimeout(300);

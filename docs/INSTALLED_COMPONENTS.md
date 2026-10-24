@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.8.0 (2026-10-24): "Save & add another" button on the food screen (new entries only): saves the food, then reopens the add list for the same meal.
+
 1.7.1 (2026-10-24): fix: Open Food Facts HTTP 404 for an unknown barcode is now "not found" (not an error), so USDA UPC lookup and the Create-custom-food prompt work.
 
 1.7.0 (2026-10-24): barcode lookups now also search USDA FoodData Central Branded foods by UPC (gtinUpc, exact match, leading zeros ignored) when Open Food Facts doesn't have the code. Uses the same USDA key as search; either source failing no longer blocks the other.

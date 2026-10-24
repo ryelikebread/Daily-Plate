@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -505,6 +505,7 @@ function openAmountDialog(food, entry) {
     $('#amount-unit').value = opts[0].value;
     $('#amount-meal').value = state.addMeal;
   }
+  $('#amount-more').hidden = !!entry;
   renderAmountPreview();
   $('#amount-dialog').showModal();
   $('#amount-dialog .sheet-body').scrollTop = 0;
@@ -630,7 +631,8 @@ function renderAmountPreview() {
 }
 
 async function onAmountClose() {
-  if ($('#amount-dialog').returnValue !== 'ok') return;
+  const rv = $('#amount-dialog').returnValue;
+  if (rv !== 'ok' && rv !== 'more') return;
   const food = state.pendingFood;
   const { qty, grams, unit } = currentGrams();
   if (!(grams > 0)) return;
@@ -646,6 +648,7 @@ async function onAmountClose() {
   };
   await DB.save('entries', entry);
   renderDiary();
+  if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal); }
 }
 
 async function editEntry(id) {
