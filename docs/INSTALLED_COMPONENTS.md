@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.10.0 (2026-10-24): photos on diary entries. New IndexedDB store `photos` (DB_VERSION 3; id, entryId, date, blob, at; indexes entryId and date). Pictures are chosen with the phone's camera/library file picker (`<input type=file accept=image/*>`), shrunk in the browser to at most 1280 px JPEG, and kept only on that device: not synced, not in JSON backup (they would exceed the Gist size). Deleted with their entry (Undo restores them).
+
 1.9.0 (2026-10-24): grouped diary items. Entries gain an optional `groupId`; entries sharing it show as one expandable line with combined nutrients (parts stay ordinary entries, so totals, sync, backup and older data work unchanged). Checkbox "Part of the same item as ..." on the food screen after Save & add another (default off). Delete whole item (with Undo), Ungroup, Copy yesterday keeps groups (new ids), CSV export has a `group` column.
 
 1.8.1 (2026-10-24): barcode lookup tries every spelling of a code (as typed, leading zeros stripped, padded to 8/12/13/14 digits, UPC-E expanded to UPC-A, and with a missing/wrong check digit repaired) against Open Food Facts and USDA; USDA matches compare numeric values and tolerate a missing check digit; USDA foods missing calories are kept (kJ or macros used to estimate). A miss now lists the sources and spellings tried and warns when the check digit is invalid (scanner.js: variants, checkDigitOk).

@@ -103,6 +103,8 @@ Above the results are four filters:
 
 **Adding several foods in a row**: on the food screen, **Save & add another** saves the food to the meal and immediately reopens the add list for that same meal, so you can add sides, toppings or extras one after another. Press **Save** on the last one.
 
+**Photos**: on the food screen, tap **📷 Add photo** to take a picture or choose one from your library (several at once is fine). Photos are shrunk to save space, appear as small thumbnails on that diary row (tap them to view full size), and can be removed by editing the entry. They stay on the device where you added them: they are not synced between devices and are not in the backup file, so don't rely on them as your only copy. Deleting an entry deletes its photos (Undo brings them back).
+
 **Part of the same item**: on the second and later foods a box reads *Part of the same item as ...* (unticked by default, meaning a separate entry). Tick it for things like a burger plus toppings: they show as one diary line ("Burger + 2 more") with combined calories and macros. Tap the line to see the parts, edit or delete a single part, see combined energy and macros, or press **Ungroup parts**. The ✕ on the grouped line deletes the whole item (Undo is offered). Copy yesterday keeps groups together, and the CSV export has a group column.
 
 ### Scanning barcodes

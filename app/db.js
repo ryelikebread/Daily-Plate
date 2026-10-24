@@ -1,7 +1,7 @@
 // Tiny IndexedDB wrapper. All data lives in the browser's IndexedDB
 // database "daily-plate" on this device.
 const DB_NAME = 'daily-plate';
-const DB_VERSION = 2; // v2 adds lookupCache (online search results kept for offline use)
+const DB_VERSION = 3; // v2 adds lookupCache (online search results); v3 adds photos (device-only pictures attached to entries)
 const STORES = ['foods', 'entries', 'days', 'settings'];
 
 const DB = (() => {
@@ -24,6 +24,11 @@ const DB = (() => {
         if (!db.objectStoreNames.contains('days')) db.createObjectStore('days', { keyPath: 'date' });
         if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
         if (!db.objectStoreNames.contains('lookupCache')) db.createObjectStore('lookupCache', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('photos')) {
+          const s = db.createObjectStore('photos', { keyPath: 'id' });
+          s.createIndex('entryId', 'entryId', { unique: false });
+          s.createIndex('date', 'date', { unique: false });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);

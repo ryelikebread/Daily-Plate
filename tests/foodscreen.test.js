@@ -177,6 +177,7 @@ function serve() {
 
   // copy yesterday keeps a group together (regroup, then copy it to the next day)
   await page.click('#meals [data-del]').catch(() => {});
+  await page.waitForTimeout(500);
   await page.evaluate(async () => {
     const all = await DB.all('entries');
     const d = all[0].date; const gid = 'g-test';
@@ -193,6 +194,33 @@ function serve() {
   await page.fill('#diary-date', today);
   await page.dispatchEvent('#diary-date', 'change');
   await page.waitForTimeout(300);
+
+  // photos on an entry (1x1 PNG), shown as thumbnail, kept when edited, deleted with the entry
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.click('#qa-add');
+  await page.waitForTimeout(300);
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  await page.setInputFiles('#photo-input', { name: 'meal.png', mimeType: 'image/png', buffer: PNG });
+  await page.waitForSelector('#photo-strip img');
+  check(await page.locator('#photo-strip img').count() === 1, 'chosen photo appears in the food screen');
+  await page.click('#amount-ok');
+  await page.waitForSelector('#meals .entry-photos img');
+  check(await page.locator('#meals .entry-photos img').count() === 1, 'diary row shows the photo thumbnail');
+  await page.click('#meals .entry-photos');
+  await page.waitForSelector('#photo-dialog[open]');
+  check(await page.locator('#photo-view img').count() === 1, 'tapping the thumbnail opens the photo viewer');
+  await page.click('#photo-dialog button[value="close"]');
+  const withPhoto = page.locator('#meals .entry', { has: page.locator('.entry-photos') }).first();
+  await withPhoto.locator('[data-edit]').click();
+  await page.waitForSelector('#amount-dialog[open]');
+  await page.waitForSelector('#photo-strip img');
+  check(await page.locator('#photo-strip img').count() === 1, 'photo is loaded when the entry is edited');
+  await page.click('#photo-strip [data-rmphoto]');
+  await page.click('#amount-ok');
+  await page.waitForTimeout(400);
+  check(await page.locator('#meals .entry-photos').count() === 0, 'removing the photo in edit takes it off the diary row');
+  check(await page.evaluate(async () => (await DB.all('photos')).length) === 0, 'photo record is deleted from the device');
 
   // favorites first; remove from recents
   await page.click('#qa-add');

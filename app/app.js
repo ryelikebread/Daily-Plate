@@ -1,11 +1,12 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const state = {
+  photos: [], removedPhotos: [], // pictures on the open food screen
   date: todayStr(),
   foods: new Map(),
   goals: {},
@@ -155,6 +156,24 @@ function bindUI() {
   $('#amount-unit').addEventListener('change', renderAmountPreview);
   $('#amount-dialog').addEventListener('close', onAmountClose);
   $('#fav-toggle').addEventListener('click', toggleFavorite);
+  $('#photo-input').addEventListener('change', async (ev) => {
+    const files = [...ev.target.files]; ev.target.value = '';
+    for (const f of files) {
+      try { const blob = await shrinkImage(f); state.photos.push({ id: uid(), blob, url: URL.createObjectURL(blob), isNew: true }); }
+      catch (_) { toast('Could not read that image.'); }
+    }
+    renderPhotoStrip();
+  });
+  $('#photo-strip').addEventListener('click', (ev) => {
+    const rm = ev.target.closest('[data-rmphoto]');
+    if (rm) {
+      const i = state.photos.findIndex(p => p.id === rm.dataset.rmphoto);
+      if (i >= 0) { const [p] = state.photos.splice(i, 1); if (!p.isNew) state.removedPhotos.push(p.id); URL.revokeObjectURL(p.url); renderPhotoStrip(); }
+      return;
+    }
+    const img = ev.target.closest('[data-viewphoto]');
+    if (img) showPhotos(state.photos.map(p => p.url), state.photos.findIndex(p => p.id === img.dataset.viewphoto));
+  });
   $('#amount-same').addEventListener('change', () => {
     const on = $('#amount-same').checked && state.after;
     if (on) $('#amount-meal').value = state.after.meal;
@@ -290,6 +309,8 @@ async function renderDiary() {
   });
   $$('#meals [data-edit]').forEach(b => b.addEventListener('click', () => editEntry(b.dataset.edit)));
 
+  decoratePhotos();
+
   // notes etc
   $('#day-note').value = day.note || '';
   $('#day-weight').value = day.weight ?? '';
@@ -299,6 +320,56 @@ async function renderDiary() {
   // nutrient table
   Report.render($('#day-report'), entries.length ? totals : {}, { goals: state.goals });
   $('#day-report').insertAdjacentHTML('beforeend', '<p class="hint">Day totals add up what each food lists. Foods that don\'t list a nutrient count as zero for it, so vitamin and mineral totals are a minimum.</p>');
+}
+
+// ----- photos: pictures attached to entries (device-only, kept in the `photos` store) -----
+function resetPhotos() {
+  state.photos.forEach(p => URL.revokeObjectURL(p.url));
+  state.photos = []; state.removedPhotos = [];
+  renderPhotoStrip();
+}
+
+function renderPhotoStrip() {
+  $('#photo-strip').innerHTML = state.photos.map(p => `<span class="ph"><img src="${p.url}" alt="Photo" data-viewphoto="${p.id}"><button type="button" class="ph-x" data-rmphoto="${p.id}" aria-label="Remove photo">✕</button></span>`).join('');
+}
+
+// Shrinks a picture to at most 1280 px on the long side (JPEG) so it stays small.
+async function shrinkImage(file, max = 1280) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  if (bmp.close) bmp.close();
+  return await new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('encode failed'))), 'image/jpeg', 0.8));
+}
+
+let viewUrls = [];
+function showPhotos(urls, start = 0) {
+  $('#photo-view').innerHTML = urls.map((u, i) => `<img src="${u}" alt="Photo ${i + 1}">`).join('');
+  $('#photo-dialog').showModal();
+  const imgs = $('#photo-view').querySelectorAll('img');
+  if (imgs[start]) imgs[start].scrollIntoView({ block: 'nearest' });
+}
+
+// Adds small picture thumbnails to the diary rows that have photos.
+async function decoratePhotos() {
+  viewUrls.forEach(u => URL.revokeObjectURL(u)); viewUrls = [];
+  const date = state.date;
+  const list = (await DB.byIndex('photos', 'date', date).catch(() => [])).sort((a, b) => a.at - b.at);
+  if (date !== state.date) return;
+  const by = new Map();
+  for (const p of list) { if (!by.has(p.entryId)) by.set(p.entryId, []); by.get(p.entryId).push(p); }
+  for (const [id, ps] of by) {
+    const host = document.querySelector(`#meals [data-edit="${id}"]`);
+    if (!host) continue;
+    const urls = ps.map(p => { const u = URL.createObjectURL(p.blob); viewUrls.push(u); return u; });
+    const strip = document.createElement('div');
+    strip.className = 'entry-photos';
+    strip.innerHTML = urls.slice(0, 4).map(u => `<img src="${u}" alt="Photo">`).join('') + (urls.length > 4 ? `<span class="hint">+${urls.length - 4}</span>` : '');
+    strip.addEventListener('click', (ev) => { ev.stopPropagation(); showPhotos(urls); });
+    host.appendChild(strip);
+  }
 }
 
 // ----- grouped items: foods marked "part of the same item" share a groupId -----
@@ -341,9 +412,11 @@ function groupHtml(g) {
 
 async function deleteGroup(gid) {
   const parts = (await entriesFor(state.date)).filter(e => e.groupId === gid);
-  for (const e of parts) await DB.remove('entries', e.id);
+  const ph = [];
+  for (const e of parts) { ph.push(...await DB.byIndex('photos', 'entryId', e.id).catch(() => [])); await DB.remove('entries', e.id); }
+  for (const p of ph) await DB.del('photos', p.id);
   await renderDiary();
-  toast(`Removed ${parts[0] ? parts[0].food.name : 'item'} and ${Math.max(0, parts.length - 1)} part(s)`, 'Undo', async () => { await DB.saveMany('entries', parts); renderDiary(); });
+  toast(`Removed ${parts[0] ? parts[0].food.name : 'item'} and ${Math.max(0, parts.length - 1)} part(s)`, 'Undo', async () => { await DB.saveMany('entries', parts); await DB.putMany('photos', ph); renderDiary(); });
 }
 
 async function ungroup(gid) {
@@ -378,9 +451,11 @@ async function saveDay(patch) {
 
 async function deleteEntry(id) {
   const e = await DB.get('entries', id);
+  const ph = await DB.byIndex('photos', 'entryId', id).catch(() => []);
   await DB.remove('entries', id);
+  for (const p of ph) await DB.del('photos', p.id);
   await renderDiary();
-  toast(`Removed ${e ? e.food.name : 'entry'}`, 'Undo', async () => { if (e) { await DB.save('entries', e); renderDiary(); } });
+  toast(`Removed ${e ? e.food.name : 'entry'}`, 'Undo', async () => { if (e) { await DB.save('entries', e); await DB.putMany('photos', ph); renderDiary(); } });
 }
 
 async function copyYesterday() {
@@ -568,6 +643,12 @@ function openAmountDialog(food, entry) {
     $('#amount-meal').value = state.addMeal;
   }
   $('#amount-more').hidden = !!entry;
+  resetPhotos();
+  if (entry) DB.byIndex('photos', 'entryId', entry.id).then(list => {
+    if (state.editingEntry !== entry) return;
+    state.photos = list.sort((a, b) => a.at - b.at).map(p => ({ id: p.id, blob: p.blob, url: URL.createObjectURL(p.blob), isNew: false }));
+    renderPhotoStrip();
+  }).catch(() => {});
   const after = !entry && state.after;
   $('#amount-same-row').hidden = !after;
   $('#amount-same').checked = false; // default: a separate entry
@@ -699,7 +780,9 @@ function renderAmountPreview() {
 
 async function onAmountClose() {
   const rv = $('#amount-dialog').returnValue;
-  if (rv !== 'ok' && rv !== 'more') return;
+  const photos = state.photos, removed = state.removedPhotos;
+  state.photos = []; state.removedPhotos = [];
+  if (rv !== 'ok' && rv !== 'more') { photos.forEach(p => URL.revokeObjectURL(p.url)); return; }
   const food = state.pendingFood;
   const { qty, grams, unit } = currentGrams();
   if (!(grams > 0)) return;
@@ -723,6 +806,9 @@ async function onAmountClose() {
     }
   }
   await DB.save('entries', entry);
+  for (const id of removed) await DB.del('photos', id);
+  for (const p of photos) if (p.isNew) await DB.put('photos', { id: p.id, entryId: entry.id, date: entry.date, blob: p.blob, at: Date.now() });
+  photos.forEach(p => URL.revokeObjectURL(p.url));
   renderDiary();
   if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal, { entryId: entry.id, name: food.name, meal: entry.meal }); }
   else state.after = null;
