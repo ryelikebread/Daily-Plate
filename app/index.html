@@ -64,7 +64,7 @@
 
     <details class="card">
       <summary>All nutrients for this day</summary>
-      <div id="nutrient-table"></div>
+      <div id="day-report"></div>
     </details>
   </section>
 
@@ -208,21 +208,64 @@
   </form>
 </dialog>
 
-<!-- Amount dialog -->
-<dialog id="amount-dialog">
-  <form method="dialog" class="dialog-body" id="amount-form">
-    <h2 id="amount-title"></h2>
-    <div class="row">
-      <input type="number" id="amount-qty" step="any" min="0" value="1" style="width:6em" required>
-      <select id="amount-unit"></select>
+<!-- Food screen: amount, meal and full nutrient report -->
+<dialog id="amount-dialog" class="sheet">
+  <form method="dialog" id="amount-form" class="sheet-form">
+    <header class="sheet-head">
+      <button value="cancel" formnovalidate class="icon" aria-label="Close">✕</button>
+      <h2><button type="button" id="fav-toggle" class="star" aria-label="Add to favorites" aria-pressed="false">☆</button> <span id="amount-title"></span></h2>
+      <button type="button" id="food-menu-btn" class="icon" aria-label="More actions" aria-haspopup="true">⋯</button>
+      <div id="food-menu" class="menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-act="fav"><span id="menu-fav-label">Add to favorites</span><span>☆</span></button>
+        <button type="button" role="menuitem" data-act="recent">Remove from recents<span>🗑</span></button>
+        <button type="button" role="menuitem" data-act="report">Report an issue<span>⚠</span></button>
+        <button type="button" role="menuitem" data-act="copy">Edit a copy<span>⧉</span></button>
+      </div>
+    </header>
+    <div class="sheet-body">
+      <div class="card form-rows">
+        <label class="frow"><span>Amount</span><input type="number" id="amount-qty" step="any" min="0" value="1" required inputmode="decimal"></label>
+        <label class="frow"><span>Serving size</span><select id="amount-unit"></select></label>
+        <label class="frow"><span>Meal</span><select id="amount-meal"></select></label>
+      </div>
+      <div class="meta center">
+        <div id="amount-brand" class="hint"></div>
+        <div id="amount-meta" class="hint"></div>
+        <div id="amount-flag" class="flag" hidden></div>
+        <div id="amount-preview"></div>
+      </div>
+      <div id="amount-report"></div>
     </div>
+    <footer class="sheet-foot"><button value="ok" class="primary wide" id="amount-ok">Save</button></footer>
+  </form>
+</dialog>
+
+<!-- Nutrient explanation -->
+<dialog id="info-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2 id="info-title"></h2>
+    <div id="info-body" class="info-body"></div>
+    <div class="row end"><button value="close" class="primary">Close</button></div>
+  </form>
+</dialog>
+
+<!-- Report an issue with a food -->
+<dialog id="issue-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2>Report an issue</h2>
+    <p class="hint" id="issue-food"></p>
+    <label>What looks wrong?
+      <textarea id="issue-note" rows="3" placeholder="e.g. calories look too high, serving size is wrong"></textarea>
+    </label>
+    <p class="hint">Saved on this device: the food gets a ⚠ flag with your note so you can spot it later. You can also fix the source data or copy the details.</p>
     <div class="row">
-      <label class="inline">Meal <select id="amount-meal"></select></label>
+      <a id="issue-source" class="button-like" target="_blank" rel="noopener noreferrer" hidden>Open the source entry</a>
+      <button type="button" id="issue-copy" class="ghost">Copy details</button>
+      <button type="button" id="issue-clear" class="ghost" hidden>Clear flag</button>
     </div>
-    <div id="amount-preview" class="hint"></div>
     <div class="row end">
       <button value="cancel" formnovalidate>Cancel</button>
-      <button value="ok" class="primary" id="amount-ok">Save</button>
+      <button value="ok" class="primary">Save flag</button>
     </div>
   </form>
 </dialog>
@@ -310,6 +353,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="nutrients.js"></script>
+<script src="nutrient-info.js"></script>
+<script src="report.js"></script>
 <script src="starter-foods.js"></script>
 <script src="db.js"></script>
 <script src="lookup.js"></script>

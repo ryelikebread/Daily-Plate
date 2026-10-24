@@ -21,7 +21,9 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/vendor/zxing-LICENSE.txt` | Its licence text. |
 | `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
 | `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation). Brands / Restaurants / Basic filters, restaurant-chain recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format. |
-| `app/nutrients.js` | The 14 tracked nutrients, their units and default goals, and the four meals. |
+| `app/nutrients.js` | The 62 tracked nutrients (groups, units, default targets, USDA and Open Food Facts codes), derived values (net carbs, omega-3/6 totals) and the four meals. |
+| `app/nutrient-info.js` | The "what it is / why it matters" explanation for every nutrient, written for Daily Plate, with links to the government sources. |
+| `app/report.js` | The nutrient report (energy ring, macro and highlighted targets, scores, full grouped summary) and the explanation pop-up. |
 | `app/starter-foods.js` | 24 common whole foods built in so the app is useful offline on day one. |
 | `app/sw.js` | Service worker: caches the app files so it opens offline; opens the diary when a reminder notification is tapped. |
 | `app/manifest.webmanifest` | Lets the browser install Daily Plate as an app (name, icon, colors). |
@@ -29,6 +31,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/apple-touch-icon.png` | 180×180 Home Screen icon for iPhone/iPad. |
 | `app/icon-192.png`, `app/icon-512.png` | Install icons for Android/Chrome. |
 | `tests/smoke.test.js` | Automated end-to-end test (developer use only). |
+| `tests/foodscreen.test.js` | Automated test of the food screen, explanations, favorites, recents, issue flags and Edit a copy (developer use only). |
 | `tests/database.test.js` | Automated test of brand/restaurant search, filters, paging, serving sizes and offline cache (developer use only). |
 | `tests/scanner.test.js` | Automated scanner test with generated barcodes and a fake camera (developer use only). |
 | `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
@@ -41,8 +44,8 @@ When you open the app, the browser creates:
 
 | Item | Name | Contents |
 |---|---|---|
-| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `lookupCache` (online search results and barcode lookups, kept 14 days for speed and offline use; safe to clear, not backed up or synced), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
-| Cache Storage | `daily-plate-v5` | Copies of the app's own files for offline use. No personal data. |
+| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods; also each food's favorite star, recents-hidden time and any issue flag + note), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `lookupCache` (online search results and barcode lookups, kept 14 days for speed and offline use; safe to clear, not backed up or synced), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
+| Cache Storage | `daily-plate-v6` | Copies of the app's own files for offline use. No personal data. |
 | Service worker | `sw.js` | Registered for the site's address. Only when served over http(s). |
 | Permissions (optional) | Notifications, Camera | Asked only when you save a reminder / press Scan. |
 | Persistent storage request | — | The app asks the browser not to auto-clear its data. The browser decides. |
@@ -71,6 +74,13 @@ Food lookups can be turned off in Settings; sync is off until you turn it on. No
 Sources considered and **not** used: commercial food-tracker apps (excluded by the clean-room rule; no scraping), Nutritionix (commercial licence), FatSecret Platform (free tier exists but must be called through a server you run, with your own API keys; see the option offered in the project thread), scraping chain websites (terms of use).
 
 The chain list in `lookup.js` holds only restaurant names, used to label results.
+
+## Nutrient explanations and targets
+
+- **Explanations** (`app/nutrient-info.js`) are short summaries written for Daily Plate in our own words, based on: NIH Office of Dietary Supplements consumer fact sheets (ods.od.nih.gov), NIH MedlinePlus (medlineplus.gov), the FDA (fda.gov: Daily Values, added sugars, sodium, trans fat, caffeine) and the Dietary Guidelines for Americans from USDA and HHS (dietaryguidelines.gov). Each explanation links to its sources. No text was copied from any app. Shown with a note that it is general information, not medical advice.
+- **Default targets** (`app/nutrients.js`): adult RDA/AI values from the NIH ODS fact sheets, FDA Daily Values for limits (sodium 2,300 mg, saturated fat 20 g, added sugars 50 g, cholesterol 300 mg), FDA's 400 mg caffeine guide, and Institute of Medicine amino-acid RDAs per kg worked out for 70 kg. All editable in Settings.
+- **Derived values**: net carbs = total carbs − fiber (not an official FDA/USDA term); omega-3 and omega-6 totals are summed from the individual fatty acids when a food doesn't list a total.
+- **Not used**: proprietary nutrient databases (e.g. the one the reference screenshots came from). Only the general layout idea (sections with progress bars) was followed, with our own design, colours and wording.
 
 ## Third-party code
 
@@ -113,6 +123,7 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.5.0 (2026-10-24): full food screen (energy ring, targets, scores, 62 nutrients in groups), tap-to-learn nutrient explanations, favorites, remove from recents, report-an-issue flags, Edit a copy.
 1.4.0 (2026-10-24): Brands / Restaurants / Basic search filters, restaurant recognition, USDA serving sizes, paging, offline search cache; Add food and Scan barcode buttons on the Diary screen.
 1.3.0 (2026-10-24): camera and photo barcode scanning (works on iPhone).
 1.2.0 (2026-10-24): encrypted sync between devices via a secret GitHub Gist.

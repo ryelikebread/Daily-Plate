@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -154,6 +154,19 @@ function bindUI() {
   $('#amount-qty').addEventListener('input', renderAmountPreview);
   $('#amount-unit').addEventListener('change', renderAmountPreview);
   $('#amount-dialog').addEventListener('close', onAmountClose);
+  $('#fav-toggle').addEventListener('click', toggleFavorite);
+  $('#food-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); $('#food-menu').hidden = !$('#food-menu').hidden; });
+  $$('#food-menu [data-act]').forEach(b => b.addEventListener('click', () => foodMenuAction(b.dataset.act)));
+  $('#amount-dialog').addEventListener('click', (e) => { if (!e.target.closest('#food-menu, #food-menu-btn')) $('#food-menu').hidden = true; });
+  $('#issue-dialog').addEventListener('close', onIssueClose);
+  $('#issue-copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(issueDetails()); toast('Details copied.'); }
+    catch (_) { toast('Could not copy on this device.'); }
+  });
+  $('#issue-clear').addEventListener('click', async () => {
+    const f = await ensureSavedFood(); delete f.issue; await DB.save('foods', f);
+    $('#issue-dialog').close('cancel'); renderFoodHeader(); toast('Flag cleared.');
+  });
 
   // quick add
   $('#quick-dialog').addEventListener('close', onQuickClose);
@@ -280,13 +293,8 @@ async function renderDiary() {
   $$('.unit-weight').forEach(s => (s.textContent = state.settings.weightUnit));
 
   // nutrient table
-  $('#nutrient-table').innerHTML = `<table class="ntable"><thead><tr><th>Nutrient</th><th>Total</th><th>Goal</th><th>%</th></tr></thead><tbody>
-    ${NUTRIENTS.map(n => {
-      const v = totals[n.key]; const g = state.goals[n.key];
-      const pct = g ? Math.round(((v || 0) / g) * 100) : null;
-      return `<tr><td>${n.label}${n.limit ? ' <span class="hint">(limit)</span>' : ''}</td><td>${fmt(v, n.unit)} ${n.unit}</td><td>${g ?? '–'} ${n.unit}</td><td class="${n.limit && pct > 100 ? 'over' : ''}">${pct ?? '–'}%</td></tr>`;
-    }).join('')}</tbody></table>
-    <p class="hint">Missing values in a food are counted as zero, so micronutrient totals are a lower bound.</p>`;
+  Report.render($('#day-report'), entries.length ? totals : {}, { goals: state.goals });
+  $('#day-report').insertAdjacentHTML('beforeend', '<p class="hint">Day totals add up what each food lists. Foods that don\'t list a nutrient count as zero for it, so vitamin and mineral totals are a minimum.</p>');
 }
 
 function progressBar(n, v) {
@@ -353,7 +361,12 @@ async function recentFoodIds() {
   const from = shiftDate(todayStr(), -30);
   const recent = await DB.range('entries', 'date', from, '9999-12-31');
   const count = {};
-  recent.forEach(e => { if (e.foodId) count[e.foodId] = (count[e.foodId] || 0) + 1; });
+  recent.forEach(e => {
+    if (!e.foodId) return;
+    const f = state.foods.get(e.foodId);
+    if (f && f.recentHiddenAt && (e.createdAt || 0) <= f.recentHiddenAt) return; // removed from recents
+    count[e.foodId] = (count[e.foodId] || 0) + 1;
+  });
   return Object.entries(count).sort((a, b) => b[1] - a[1]).map(([id]) => id);
 }
 
@@ -361,10 +374,12 @@ async function renderLocalResults() {
   const q = $('#add-search').value.trim().toLowerCase();
   let list;
   if (!q) {
+    const favs = [...state.foods.values()].filter(f => f.favorite).sort((a, b) => a.name.localeCompare(b.name));
     const ids = await recentFoodIds();
-    list = ids.map(id => state.foods.get(id)).filter(Boolean).slice(0, 15);
+    const recents = ids.map(id => state.foods.get(id)).filter(f => f && !f.favorite).slice(0, 15);
+    list = [...favs, ...recents];
     if (!list.length) list = [...state.foods.values()].slice(0, 15);
-    $('#add-status').textContent = list.length ? (ids.length ? 'Recent foods' : 'Your foods') : '';
+    $('#add-status').textContent = list.length ? [favs.length ? '★ Favorites' : '', recents.length ? 'Recent foods' : ''].filter(Boolean).join(', then ') || 'Your foods' : '';
   } else {
     const words = q.split(/\s+/);
     list = [...state.foods.values()]
@@ -378,7 +393,7 @@ async function renderLocalResults() {
 function renderResults(container, list, onPick) {
   const el = $(container);
   el.innerHTML = list.map((f, i) => `<button type="button" class="result" data-i="${i}">
-      <span><strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''}
+      <span>${f.favorite ? '<span class="fav-mark">★</span> ' : ''}${f.issue ? '⚠ ' : ''}<strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''}
       ${f.kind === 'restaurant' ? '<span class="tag tag-restaurant">restaurant</span>' : ''}<span class="tag tag-${f.source}">${sourceLabel(f.source)}</span></span>
       <span class="hint">${fmt(f.per100.kcal, 'kcal')} kcal / 100 g · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</span>
     </button>`).join('');
@@ -470,6 +485,8 @@ function openAmountDialog(food, entry) {
   state.pendingFood = food;
   state.editingEntry = entry;
   $('#amount-title').textContent = food.name;
+  $('#food-menu').hidden = true;
+  renderFoodHeader();
   const opts = unitOptions(food);
   $('#amount-unit').innerHTML = opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
   $('#amount-meal').innerHTML = MEALS.map(m => `<option>${m}</option>`).join('');
@@ -484,7 +501,102 @@ function openAmountDialog(food, entry) {
   }
   renderAmountPreview();
   $('#amount-dialog').showModal();
-  $('#amount-qty').select();
+  $('#amount-dialog .sheet-body').scrollTop = 0;
+}
+
+const DATASET_LABEL = { 'SR Legacy': 'USDA SR Legacy', 'Foundation': 'USDA Foundation Foods', 'Survey (FNDDS)': 'USDA FNDDS', 'Branded': 'USDA Branded Foods' };
+function sourceText(f) {
+  if (f.source === 'usda') return DATASET_LABEL[f.dataset] || 'USDA FoodData Central';
+  return { off: 'Open Food Facts', starter: 'Built-in basics (USDA, rounded)', custom: 'Your custom food', recipe: 'Your recipe', quick: 'Quick add' }[f.source] || f.source;
+}
+
+// Star, brand, data source, nutrient count and any issue flag for the food screen.
+function renderFoodHeader() {
+  const f = state.pendingFood;
+  const saved = state.foods.get(f.id) || f;
+  const fav = !!saved.favorite;
+  $('#fav-toggle').textContent = fav ? '★' : '☆';
+  $('#fav-toggle').classList.toggle('on', fav);
+  $('#fav-toggle').setAttribute('aria-pressed', String(fav));
+  $('#menu-fav-label').textContent = fav ? 'Remove from favorites' : 'Add to favorites';
+  const listed = NUTRIENTS.filter(n => !n.derived && f.per100 && f.per100[n.key] != null).length;
+  $('#amount-brand').textContent = [f.brand, f.kind === 'restaurant' ? 'restaurant' : ''].filter(Boolean).join(' · ');
+  $('#amount-meta').textContent = `${listed} listed nutrient${listed === 1 ? '' : 's'} · Data source: ${sourceText(f)}`;
+  $('#amount-flag').hidden = !saved.issue;
+  $('#amount-flag').textContent = saved.issue ? `⚠ You flagged this food: ${saved.issue.note || 'no note'}` : '';
+}
+
+// Make sure the food on screen is saved in "Your foods" before changing it.
+async function ensureSavedFood() {
+  const f = state.pendingFood;
+  if (!state.foods.has(f.id)) {
+    const rec = { ...f, createdAt: Date.now() };
+    await DB.save('foods', rec);
+    state.foods.set(rec.id, rec);
+  }
+  return state.foods.get(f.id);
+}
+
+async function toggleFavorite() {
+  const f = await ensureSavedFood();
+  f.favorite = !f.favorite;
+  await DB.save('foods', f);
+  state.pendingFood = { ...state.pendingFood, favorite: f.favorite };
+  renderFoodHeader();
+  toast(f.favorite ? 'Added to favorites. Favorites show first when you add food.' : 'Removed from favorites.');
+}
+
+async function foodMenuAction(act) {
+  $('#food-menu').hidden = true;
+  const f = state.pendingFood;
+  if (act === 'fav') return toggleFavorite();
+  if (act === 'recent') {
+    const saved = await ensureSavedFood();
+    saved.recentHiddenAt = Date.now();
+    await DB.save('foods', saved);
+    return toast(`${f.name} removed from recents. It's still in your foods.`);
+  }
+  if (act === 'report') return openIssueDialog();
+  if (act === 'copy') {
+    $('#amount-dialog').close();
+    return openFoodEditor(null, { copyFrom: f });
+  }
+}
+
+function sourceUrl(f) {
+  if (f.source === 'off' && f.barcode) return `https://world.openfoodfacts.org/product/${encodeURIComponent(f.barcode)}`;
+  if (f.source === 'usda' && /^usda-\d+$/.test(f.id)) return `https://fdc.nal.usda.gov/food-details/${f.id.slice(5)}/nutrients`;
+  return null;
+}
+
+function openIssueDialog() {
+  const f = state.foods.get(state.pendingFood.id) || state.pendingFood;
+  $('#issue-food').textContent = `${f.name}${f.brand ? ' · ' + f.brand : ''} (${sourceText(f)})`;
+  $('#issue-note').value = f.issue ? f.issue.note : '';
+  const url = sourceUrl(f);
+  $('#issue-source').hidden = !url;
+  if (url) {
+    $('#issue-source').href = url;
+    $('#issue-source').textContent = f.source === 'off' ? 'Fix it on Open Food Facts' : 'View it on USDA FoodData Central';
+  }
+  $('#issue-clear').hidden = !f.issue;
+  $('#issue-dialog').showModal();
+}
+
+function issueDetails() {
+  const f = state.foods.get(state.pendingFood.id) || state.pendingFood;
+  const lines = [`Food: ${f.name}`, f.brand ? `Brand: ${f.brand}` : '', `Source: ${sourceText(f)}`, f.barcode ? `Barcode: ${f.barcode}` : '', sourceUrl(f) ? `Link: ${sourceUrl(f)}` : '',
+    `Issue: ${$('#issue-note').value || '(no note)'}`, 'Per 100 g: ' + NUTRIENTS.filter(n => f.per100[n.key] != null).map(n => `${n.label} ${fmt(f.per100[n.key], n.unit)} ${n.unit}`).join(', ')];
+  return lines.filter(Boolean).join('\n');
+}
+
+async function onIssueClose() {
+  if ($('#issue-dialog').returnValue !== 'ok') return;
+  const f = await ensureSavedFood();
+  f.issue = { note: $('#issue-note').value.trim(), at: Date.now() };
+  await DB.save('foods', f);
+  renderFoodHeader();
+  toast('Flag saved on this food.');
 }
 
 function currentGrams() {
@@ -497,7 +609,8 @@ function currentGrams() {
 function renderAmountPreview() {
   const { grams } = currentGrams();
   const n = scaleNutrients(state.pendingFood.per100, grams);
-  $('#amount-preview').textContent = `${fmt(grams)} g → ${fmt(n.kcal, 'kcal')} kcal · P ${fmt(n.protein)} g · C ${fmt(n.carbs)} g · F ${fmt(n.fat)} g`;
+  $('#amount-preview').textContent = `Nutrition for ${fmt(grams)} g: ${fmt(n.kcal, 'kcal')} kcal`;
+  Report.render($('#amount-report'), n, { goals: state.goals });
 }
 
 async function onAmountClose() {
@@ -577,14 +690,21 @@ function renderFoodsList() {
 let editingFood = null;
 function openFoodEditor(food, prefill = {}) {
   editingFood = food;
-  $('#food-dialog-title').textContent = food ? 'Edit food' : 'Custom food';
-  $('#food-name').value = food ? food.name : '';
-  $('#food-brand').value = food ? food.brand || '' : '';
-  $('#food-barcode').value = food ? food.barcode || '' : prefill.barcode || '';
+  const src = food || prefill.copyFrom || null; // "Edit a copy" pre-fills from another food
+  $('#food-dialog-title').textContent = food ? 'Edit food' : prefill.copyFrom ? 'Edit a copy' : 'Custom food';
+  $('#food-name').value = food ? food.name : prefill.copyFrom ? prefill.copyFrom.name + ' (my copy)' : '';
+  $('#food-brand').value = src ? src.brand || '' : '';
+  $('#food-barcode').value = src ? src.barcode || '' : prefill.barcode || '';
   $('#food-basis').value = 100;
-  $('#food-nutrients').innerHTML = NUTRIENTS.map(n => `<label>${n.label} (${n.unit})
-      <input type="number" step="any" min="0" data-n="${n.key}" value="${food && food.per100[n.key] != null ? food.per100[n.key] : ''}"></label>`).join('');
-  $('#food-servings').value = food ? (food.servings || []).map(s => `${s.label} = ${s.grams}`).join('\n') : '';
+  const input = (n) => `<label>${n.label} (${n.unit})
+      <input type="number" step="any" min="0" data-n="${n.key}" value="${src && src.per100[n.key] != null ? src.per100[n.key] : ''}"></label>`;
+  const editable = NUTRIENTS.filter(n => !n.derived);
+  const extra = editable.filter(n => !n.core);
+  const extraFilled = src && extra.some(n => src.per100[n.key] != null);
+  $('#food-nutrients').innerHTML = editable.filter(n => n.core).map(input).join('') +
+    `<details class="goal-group" style="grid-column:1/-1" ${extraFilled ? 'open' : ''}><summary>More nutrients (vitamins, minerals, fats, amino acids)</summary>
+      ${NUTRIENT_GROUPS.map(g => { const l = extra.filter(n => n.group === g); return l.length ? `<h4 class="rgroup">${g}</h4><div class="grid2">${l.map(input).join('')}</div>` : ''; }).join('')}</details>`;
+  $('#food-servings').value = src ? (src.servings || []).map(s => `${s.label} = ${s.grams}`).join('\n') : '';
   $('#food-dialog').showModal();
 }
 
@@ -778,8 +898,12 @@ function lineChart(dates, values) {
 
 // ---------- settings ----------
 function renderSettings() {
-  $('#goals-form').innerHTML = NUTRIENTS.map(n => `<label>${n.label} (${n.unit})${n.limit ? ' max' : ''}
-    <input type="number" step="any" min="0" data-goal="${n.key}" value="${state.goals[n.key] ?? ''}"></label>`).join('');
+  const goalInput = (n) => `<label>${n.label} (${n.unit})${n.limit ? ' max' : ''}
+    <input type="number" step="any" min="0" data-goal="${n.key}" value="${state.goals[n.key] ?? ''}" placeholder="no target"></label>`;
+  const goalable = NUTRIENTS.filter(n => !n.derived);
+  $('#goals-form').innerHTML = goalable.filter(n => n.main).map(goalInput).join('') +
+    NUTRIENT_GROUPS.map(g => `<details class="goal-group" style="grid-column:1/-1"><summary>${g}</summary><div class="grid2">${goalable.filter(n => n.group === g && !n.main).map(goalInput).join('')}</div></details>`).join('') +
+    '<p class="hint" style="grid-column:1/-1">Defaults are typical adult reference values (NIH RDA/AI and FDA Daily Values). Leave a box empty for no target. Amino-acid targets assume a 70 kg (154 lb) adult.</p>';
   const s = state.settings;
   $('#rem-enabled').checked = s.remEnabled;
   $('#rem-time').value = s.remTime;
@@ -793,7 +917,7 @@ function renderSettings() {
 }
 
 async function saveGoals() {
-  $$('#goals-form [data-goal]').forEach(inp => { const v = parseFloat(inp.value); if (Number.isFinite(v)) state.goals[inp.dataset.goal] = v; });
+  $$('#goals-form [data-goal]').forEach(inp => { const v = parseFloat(inp.value); state.goals[inp.dataset.goal] = Number.isFinite(v) ? v : null; });
   await DB.setSetting('goals', state.goals);
   toast('Goals saved.');
   renderDiary();

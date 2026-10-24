@@ -48,18 +48,17 @@ const Lookup = (() => {
     if (!p) return null;
     const n = p.nutriments || {};
     const g = (k) => (n[k] != null && n[k] !== '' ? Number(n[k]) : null);
-    const mg = (k) => (g(k) != null ? g(k) * 1000 : null);
-    const ug = (k) => (g(k) != null ? g(k) * 1e6 : null);
     let kcal = g('energy-kcal_100g');
     if (kcal == null && g('energy_100g') != null) kcal = g('energy_100g') / 4.184; // kJ -> kcal
     if (kcal == null) return null;
-    const per100 = clean({
-      kcal, protein: g('proteins_100g'), carbs: g('carbohydrates_100g'), fat: g('fat_100g'),
-      satfat: g('saturated-fat_100g'), fiber: g('fiber_100g'), sugar: g('sugars_100g'),
-      sodium: mg('sodium_100g'), potassium: mg('potassium_100g'), calcium: mg('calcium_100g'),
-      iron: mg('iron_100g'), vitc: mg('vitamin-c_100g'), vitd: ug('vitamin-d_100g'),
-      chol: mg('cholesterol_100g'),
-    });
+    // every nutrient Open Food Facts lists (grams per 100 g) converted to our units
+    const raw = { kcal };
+    for (const def of NUTRIENTS) {
+      if (!def.off || def.key === 'kcal') continue;
+      const v = g(def.off + '_100g');
+      if (v != null) raw[def.key] = v * UNIT_FROM_G[def.unit];
+    }
+    const per100 = clean(raw);
     const brand = (p.brands || '').split(',')[0].trim();
     const chain = chainOf(brand);
     const servings = [];
@@ -91,22 +90,28 @@ const Lookup = (() => {
   }
 
   // ---------- USDA FoodData Central ----------
-  const FDC_MAP = {
-    '208': 'kcal', '203': 'protein', '205': 'carbs', '204': 'fat', '606': 'satfat',
-    '291': 'fiber', '269': 'sugar', '307': 'sodium', '306': 'potassium', '301': 'calcium',
-    '303': 'iron', '401': 'vitc', '328': 'vitd', '601': 'chol',
-  };
+  // USDA nutrient number -> [app key, priority] (lower priority number wins)
+  const FDC_MAP = {};
+  for (const def of NUTRIENTS) (def.usda || []).forEach((num, i) => { FDC_MAP[num] = [def.key, i]; });
+  const UNIT_FROM_G = { g: 1, mg: 1000, 'µg': 1e6, kcal: 1 };
+  const USDA_UNIT = { G: 'g', MG: 'mg', UG: 'µg', 'µG': 'µg', KCAL: 'kcal' };
 
   function fdcToFood(f) {
-    const per100 = {};
+    const per100 = {}; const prio = {};
     for (const fn of f.foodNutrients || []) {
       const num = String(fn.nutrientNumber || (fn.nutrient && fn.nutrient.number) || '');
-      const key = FDC_MAP[num];
-      const unit = (fn.unitName || (fn.nutrient && fn.nutrient.unitName) || '').toUpperCase();
+      const hit = FDC_MAP[num];
+      const unit = USDA_UNIT[(fn.unitName || (fn.nutrient && fn.nutrient.unitName) || '').toUpperCase()];
       const val = fn.value != null ? fn.value : fn.amount;
-      if (!key || val == null) continue;
-      if (key === 'kcal' && unit === 'KJ') continue;
-      per100[key] = Number(val);
+      if (!hit || val == null) continue;
+      const [key, p] = hit;
+      const want = NUTRIENT_BY_KEY[key].unit;
+      if (key === 'kcal' && unit && unit !== 'kcal') continue; // skip kJ
+      if (prio[key] != null && prio[key] <= p) continue;
+      // convert units if USDA uses a different one (e.g. mg vs µg)
+      const factor = unit && want !== 'kcal' && UNIT_FROM_G[unit] ? UNIT_FROM_G[want] / UNIT_FROM_G[unit] : 1;
+      per100[key] = Number(val) * factor;
+      prio[key] = p;
     }
     // Foundation foods sometimes report energy only as Atwater factors (957/958)
     if (per100.kcal == null) {
@@ -142,7 +147,7 @@ const Lookup = (() => {
       kind = 'restaurant';
     }
     return {
-      id: 'usda-' + f.fdcId, name, brand: chain || (brand ? titleCase(brand) : ''), source: 'usda', kind, category,
+      id: 'usda-' + f.fdcId, dataset: f.dataType || '', name, brand: chain || (brand ? titleCase(brand) : ''), source: 'usda', kind, category,
       barcode: f.gtinUpc || '', per100: clean(per100), servings,
     };
   }
@@ -200,11 +205,11 @@ const Lookup = (() => {
     const jobs = []; const names = [];
     if (settings.usdaEnabled !== false && F.usda.length) {
       names.push('USDA');
-      jobs.push(cached(`usda|${F.usda.join('+')}|${page}|${q.toLowerCase()}`, () => usdaSearch(q, settings.usdaKey, F.usda, page)));
+      jobs.push(cached(`v2|usda|${F.usda.join('+')}|${page}|${q.toLowerCase()}`, () => usdaSearch(q, settings.usdaKey, F.usda, page)));
     }
     if (settings.offEnabled !== false && F.off) {
       names.push('Open Food Facts');
-      jobs.push(cached(`off|${page}|${q.toLowerCase()}`, () => offSearch(q, page)));
+      jobs.push(cached(`v2|off|${page}|${q.toLowerCase()}`, () => offSearch(q, page)));
     }
     if (!jobs.length) return { results: [], more: false, errors: ['Online lookup is turned off in Settings.'] };
     const settled = await Promise.allSettled(jobs);
@@ -216,10 +221,10 @@ const Lookup = (() => {
   }
 
   async function barcode(code) {
-    const hit = await DB.get('lookupCache', 'barcode|' + code).catch(() => null);
+    const hit = await DB.get('lookupCache', 'v2|barcode|' + code).catch(() => null);
     if (hit && hit.value) return hit.value;
     const f = await offBarcode(code);
-    if (f) DB.put('lookupCache', { key: 'barcode|' + code, at: Date.now(), value: f }).catch(() => {});
+    if (f) DB.put('lookupCache', { key: 'v2|barcode|' + code, at: Date.now(), value: f }).catch(() => {});
     return f;
   }
 

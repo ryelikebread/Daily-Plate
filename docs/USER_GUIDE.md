@@ -69,7 +69,7 @@ This works for logging, but offline caching and notifications are disabled when 
 - **Body weight**: optional, shown on the Trends tab.
 - **Day complete**: tick this when the day's log is finished. It stops that evening's reminder and shows a ✓ in the archive.
 - **Copy yesterday's food**: copies every entry from the previous day into the current day.
-- **All nutrients for this day**: full table of 14 nutrients against your goals.
+- **All nutrients for this day**: the full nutrient report (energy ring, targets, scores and all nutrients) for the day's totals. Tap any nutrient for an explanation.
 
 ### Adding food
 
@@ -116,6 +116,30 @@ It reads the barcodes on packaged food: EAN-13, EAN-8, UPC-A, UPC-E (and Code 12
 
 If it says **camera access is blocked**: on iPhone open Settings → Apps → Safari → Camera → **Allow** (on older iOS: Settings → Safari → Camera), then tap Restart camera. On a computer, click the camera icon in the address bar and allow it.
 
+### The food screen
+
+Picking a food opens its full screen:
+
+- **Amount, Serving size, Meal** at the top. Everything below updates as you change the amount.
+- Under that: the brand, **how many nutrients this food lists** and its **data source** (e.g. USDA SR Legacy, USDA Branded Foods, Open Food Facts, your custom food).
+- Sections you can open and close by tapping their title (the app remembers which you keep open):
+  - **Energy summary**: a ring showing how the calories split between protein, net carbs, fat (and alcohol).
+  - **Macronutrient targets**: energy, protein, net carbs and fat against your daily goals.
+  - **Highlighted targets**: key vitamins and minerals (fiber, vitamin C, iron, B12, calcium, folate, vitamin A, potassium, sodium, vitamin D) at a glance.
+  - **Nutrient scores**: the average % of your targets this amount covers, overall and for vitamins, minerals and amino acids.
+  - **Complete nutrient summary**: up to 62 nutrients grouped into General, Vitamins, Minerals, Carbohydrates, Lipids and Protein (amino acids). Nutrients with a target show a bar and %; those without a target show the amount. Limits (sodium, saturated fat, added sugars, cholesterol, caffeine) are marked **max** and turn red when you go over. Only nutrients the food actually lists are shown; tick **Show nutrients not listed** to see the rest.
+- **Tap any nutrient** (or a ring label) to read what it is, why it matters, your target, and links to the government source (NIH Office of Dietary Supplements, MedlinePlus, FDA, Dietary Guidelines for Americans). This is general information, not medical advice.
+- **☆ star** next to the name: add to favorites. Favorites appear first, marked ★, when you add food.
+- **⋯ menu**:
+  - **Add to / Remove from favorites**
+  - **Remove from recents**: hides it from the recent list (it stays in your foods and comes back if you log it again).
+  - **Report an issue**: write what looks wrong. The food gets a ⚠ flag with your note on this device. From there you can open the source entry (Open Food Facts lets anyone correct a product; USDA shows its official record) or **Copy details** to send to someone.
+  - **Edit a copy**: makes your own editable copy with every nutrient filled in. The original stays as it was.
+
+The same full report is on the **Diary** tab under *All nutrients for this day*, for the whole day's totals.
+
+How much detail you get depends on the source: USDA generic foods (SR Legacy, Foundation, FNDDS) list the most nutrients, often 40+, including amino acids and fatty acids. Branded products and Open Food Facts usually list just what's on the label (about 10 to 15).
+
 After picking a food, choose the amount: a serving size (e.g. "1 medium"), grams, or ounces. The preview shows the calories and macros before you save.
 
 ---
@@ -157,7 +181,7 @@ In-app reminders only fire while Daily Plate is open in a tab or as an installed
 
 ## 6. Settings
 
-- **Daily goals**: targets for all 14 nutrients. Defaults are general adult reference values; adjust to your needs.
+- **Daily goals**: calories and macros at the top, then a section per group (vitamins, minerals, carbohydrates, lipids, protein/amino acids). Defaults are typical adult reference values (NIH RDA/AI, FDA Daily Values); amino-acid targets assume a 70 kg adult. Clear a box for no target.
 - **Online food lookup**: turn Open Food Facts and USDA on/off. For USDA, `DEMO_KEY` is used unless you paste your own free key from <https://api.data.gov/signup/> (recommended; DEMO_KEY is heavily rate-limited).
 - **Weight unit**: kg or lb (label only; values are stored as you type them).
 
@@ -243,6 +267,6 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-`node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
+`node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
