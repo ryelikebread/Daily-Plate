@@ -116,6 +116,8 @@ Other ways in the scanner:
 
 It reads the barcodes on packaged food: EAN-13, EAN-8, UPC-A, UPC-E (and Code 128). It works offline, but finding the product needs an internet connection unless you've scanned it before.
 
+**Codes that don't match exactly**: many websites show a code with leading zeros, without its last (check) digit, or in the short 8-digit UPC-E form. The app tries all of these spellings automatically. If nothing is found it tells you which sources and spellings it tried, and warns when the number's check digit is wrong (a likely typo or a store-only code).
+
 **UPC lookup**: a scanned (or typed) UPC is checked against Open Food Facts first, then against the UPC records in USDA FoodData Central Branded foods (US packaged products). Your own saved foods with that barcode are matched first. Turn either source off in Settings if you prefer.
 
 If it says **camera access is blocked**: on iPhone open Settings → Apps → Safari → Camera → **Allow** (on older iOS: Settings → Safari → Camera), then tap Restart camera. On a computer, click the camera icon in the address bar and allow it.

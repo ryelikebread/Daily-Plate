@@ -97,7 +97,7 @@ const Lookup = (() => {
   const UNIT_FROM_G = { g: 1, mg: 1000, 'µg': 1e6, kcal: 1 };
   const USDA_UNIT = { G: 'g', MG: 'mg', UG: 'µg', 'µG': 'µg', KCAL: 'kcal' };
 
-  function fdcToFood(f) {
+  function fdcToFood(f, opts = {}) {
     const per100 = {}; const prio = {};
     for (const fn of f.foodNutrients || []) {
       const num = String(fn.nutrientNumber || (fn.nutrient && fn.nutrient.number) || '');
@@ -119,7 +119,13 @@ const Lookup = (() => {
       const atw = (f.foodNutrients || []).find(fn => ['957', '958'].includes(String(fn.nutrientNumber)));
       if (atw) per100.kcal = Number(atw.value);
     }
-    if (per100.kcal == null) return null;
+    if (per100.kcal == null) {
+      // branded labels sometimes list only kJ, or only macros
+      const kj = (f.foodNutrients || []).find(fn => String(fn.nutrientNumber) === '268');
+      if (kj && kj.value != null) per100.kcal = Number(kj.value) / 4.184;
+      else if (per100.protein != null || per100.carbs != null || per100.fat != null) per100.kcal = (per100.protein || 0) * 4 + (per100.carbs || 0) * 4 + (per100.fat || 0) * 9;
+    }
+    if (per100.kcal == null) { if (!opts.keepIncomplete) return null; per100.kcal = 0; }
 
     const servings = [];
     if (f.servingSize > 0 && /^(g|grm|gram)/i.test(f.servingSizeUnit || '')) {
@@ -153,22 +159,25 @@ const Lookup = (() => {
     };
   }
 
-  async function usdaSearch(q, apiKey, dataTypes, page = 1) {
+  async function usdaSearch(q, apiKey, dataTypes, page = 1, opts = {}) {
     const key = apiKey || 'DEMO_KEY';
     const types = dataTypes.map(encodeURIComponent).join(',');
     const url = `${FDC_BASE}/foods/search?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(q)}&pageSize=${PAGE_SIZE}&pageNumber=${page}&dataType=${types}`;
     const r = await fetch(url);
     if (!r.ok) throw new Error('USDA: HTTP ' + r.status + (r.status === 429 ? ' (hourly limit reached: add your own free API key in Settings)' : ''));
     const j = await r.json();
-    return { list: (j.foods || []).map(fdcToFood).filter(Boolean), more: (j.totalPages || 0) > page };
+    return { list: (j.foods || []).map(x => fdcToFood(x, opts)).filter(Boolean), more: (j.totalPages || 0) > page };
   }
 
   // USDA Branded foods carry the package's UPC (gtinUpc). Search by the code
   // and keep only an exact UPC match (leading zeros ignored).
   async function usdaBarcode(code, apiKey) {
     const strip = (x) => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
-    const { list } = await usdaSearch(code, apiKey, ['Branded'], 1);
-    return list.find(f => f.barcode && strip(f.barcode) === strip(code)) || null;
+    const want = strip(code);
+    // UPC-A's last digit is a check digit; some records leave it off
+    const same = (a) => { const b = strip(a); return b && (b === want || b === want.slice(0, -1) || b.slice(0, -1) === want); };
+    const { list } = await usdaSearch(code, apiKey, ['Branded'], 1, { keepIncomplete: true });
+    return list.find(f => same(f.barcode)) || null;
   }
 
   // ---------- combined search ----------

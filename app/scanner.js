@@ -185,13 +185,56 @@ const Scanner = (() => {
   }
 
   // Barcode digits can be printed as UPC-A (12) or EAN-13 (13, leading 0).
+  // Every spelling a product code can have: as typed, with leading zeros
+  // removed, padded to 8/12/13/14 digits, and UPC-E expanded to UPC-A.
   function variants(code) {
     const c = String(code || '').replace(/\D/g, '');
-    const out = new Set([c]);
-    if (c.length === 12) out.add('0' + c);
-    if (c.length === 13 && c.startsWith('0')) out.add(c.slice(1));
-    return [...out].filter(Boolean);
+    if (!c) return [];
+    const out = [c];
+    if (c.length === 12) out.push('0' + c);
+    if (c.length === 13 && c.startsWith('0')) out.push(c.slice(1));
+    const core = c.replace(/^0+/, '');
+    if (core) {
+      for (const n of [12, 13, 8, 14]) if (core.length <= n) out.push(core.padStart(n, '0'));
+      out.push(core);
+    }
+    if (c.length === 8 && /^[01]/.test(c)) { const a = upceToUpca(c); if (a) out.push(a, '0' + a); }
+    // Many sites show a code without its check digit (or with a wrong one):
+    // try the code as the 11-digit body of a UPC-A, and with the last digit replaced.
+    if (core && !checkDigitOk(c)) {
+      const bodies = new Set();
+      if (core.length <= 11) bodies.add(core.padStart(11, '0'));
+      if (core.length >= 2 && core.length <= 12) bodies.add(core.slice(0, -1).padStart(11, '0'));
+      for (const b of bodies) { const u = b + checkDigit(b); out.push(u, '0' + u); }
+    }
+    return [...new Set(out)];
   }
 
-  return { scan, variants, scanFile };
+  function checkDigit(body) {
+    let sum = 0;
+    body.split('').reverse().forEach((ch, i) => { sum += Number(ch) * (i % 2 === 0 ? 3 : 1); });
+    return String((10 - (sum % 10)) % 10);
+  }
+
+  function upceToUpca(e) {
+    const ns = e[0], d = e.slice(1, 7), chk = e[7], last = d[5];
+    let body;
+    if ('012'.includes(last)) body = d.slice(0, 2) + last + '0000' + d.slice(2, 5);
+    else if (last === '3') body = d.slice(0, 3) + '00000' + d.slice(3, 5);
+    else if (last === '4') body = d.slice(0, 4) + '00000' + d[4];
+    else body = d.slice(0, 5) + '0000' + last;
+    return ns + body + chk;
+  }
+
+  // GS1 check digit test; works for 8, 12, 13 and 14 digit codes.
+  function checkDigitOk(code) {
+    const c = String(code || '').replace(/\D/g, '');
+    if (c.length < 8) return false;
+    const digits = c.split('').map(Number); const chk = digits.pop();
+    let sum = 0;
+    digits.reverse().forEach((d, i) => { sum += d * (i % 2 === 0 ? 3 : 1); });
+    return (10 - (sum % 10)) % 10 === chk;
+  }
+
+  return { scan, variants, checkDigitOk, scanFile };
 })();

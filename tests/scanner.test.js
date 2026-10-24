@@ -171,6 +171,26 @@ function serve() {
   await page.waitForSelector('#amount-dialog[open]', { timeout: 15000 }).catch(() => {});
   check((await page.textContent('#amount-title')).includes('Usda Upc Cereal'), 'UPC missing from Open Food Facts is found in USDA Branded: ' + await page.textContent('#amount-title'));
 
+  // 8. Kroger-style code typed without its check digit; USDA stores it as 011110136350
+  page = await open(null);
+  await page.context().route('https://api.nal.usda.gov/**', r => r.fulfill({ json: { totalPages: 1, foods: r.request().url().includes('query=011110136350') ? [
+    { fdcId: 888, dataType: 'Branded', description: 'STORE BRAND OATS', brandOwner: 'Kroger', gtinUpc: '011110136350', foodNutrients: [{ nutrientNumber: '208', unitName: 'KCAL', value: 370 }] }] : [] } }));
+  await page.click('#qa-add');
+  await page.fill('#add-barcode', '0001111013635');
+  await page.click('#add-barcode-go');
+  await page.waitForSelector('#amount-dialog[open]', { timeout: 10000 }).catch(() => {});
+  check((await page.textContent('#amount-title')).includes('Store Brand Oats'), 'code typed without check digit is found: ' + await page.textContent('#amount-title'));
+
+  // 9. A miss explains what was tried and flags a bad check digit
+  page = await open(null);
+  await page.context().route('https://api.nal.usda.gov/**', r => r.fulfill({ json: { totalPages: 1, foods: [] } }));
+  await page.click('#qa-add');
+  await page.fill('#add-barcode', '0001111013635');
+  await page.click('#add-barcode-go');
+  await page.waitForFunction(() => /not found/i.test(document.querySelector('#add-status').textContent), null, { timeout: 10000 }).catch(() => {});
+  const miss = await page.textContent('#add-status');
+  check(/Open Food Facts and USDA/.test(miss) && /check digit/.test(miss), 'miss lists sources tried and check-digit warning: ' + miss);
+
   check(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await browser.close();
   srv.close();

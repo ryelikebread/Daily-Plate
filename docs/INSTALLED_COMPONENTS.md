@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.8.1 (2026-10-24): barcode lookup tries every spelling of a code (as typed, leading zeros stripped, padded to 8/12/13/14 digits, UPC-E expanded to UPC-A, and with a missing/wrong check digit repaired) against Open Food Facts and USDA; USDA matches compare numeric values and tolerate a missing check digit; USDA foods missing calories are kept (kJ or macros used to estimate). A miss now lists the sources and spellings tried and warns when the check digit is invalid (scanner.js: variants, checkDigitOk).
+
 1.8.0 (2026-10-24): "Save & add another" button on the food screen (new entries only): saves the food, then reopens the add list for the same meal.
 
 1.7.1 (2026-10-24): fix: Open Food Facts HTTP 404 for an unknown barcode is now "not found" (not an error), so USDA UPC lookup and the Create-custom-food prompt work.

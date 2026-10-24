@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -454,7 +454,9 @@ async function barcodeLookup(code) {
       } catch (err) { lastError = err; }
     }
     if (lastError) throw lastError;
-    $('#add-status').textContent = 'Barcode not found. You can create it as a custom food.';
+    const tried = [state.settings.offEnabled !== false && 'Open Food Facts', state.settings.usdaEnabled !== false && 'USDA FoodData Central'].filter(Boolean);
+    const bad = !Scanner.checkDigitOk(code) ? ` The check digit doesn't add up for ${code}, so the number may have a typo or be a store-only code (I also tried it with the digit fixed).` : '';
+    $('#add-status').textContent = `Barcode not found. Tried ${tried.join(' and ') || 'no online sources (both are off in Settings)'} with ${forms.length} spelling${forms.length > 1 ? 's' : ''} of the code (${forms.join(', ')}).${bad} You can create it as a custom food.`;
     $('#add-results').innerHTML = `<button type="button" class="result" id="create-from-barcode">+ Create custom food with barcode ${esc(code)}</button>`;
     $('#create-from-barcode').addEventListener('click', () => { $('#add-dialog').close(); openFoodEditor(null, { barcode: code }); });
   } catch (err) {
