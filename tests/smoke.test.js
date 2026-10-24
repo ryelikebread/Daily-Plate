@@ -151,7 +151,7 @@ function check(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
   check(backup.app === 'daily-plate' && backup.entries.length === 10, 'JSON backup has 10 entries');
   const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('#export-csv')]);
   const csv = fs.readFileSync(await dl2.path(), 'utf8');
-  check(csv.split('\n').length === 11 && csv.startsWith('date,meal,food'), 'entries CSV has header + 10 rows');
+  check(csv.split('\n').length === 11 && csv.startsWith('date,meal,time,food'), 'entries CSV has header + 10 rows');
   const [dl3] = await Promise.all([page.waitForEvent('download'), page.click('#export-daily-csv')]);
   check(fs.readFileSync(await dl3.path(), 'utf8').includes('Test day'), 'daily CSV includes note');
   const [dl4] = await Promise.all([page.waitForEvent('download'), page.click('#rem-ics')]);

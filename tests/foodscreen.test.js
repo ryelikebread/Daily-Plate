@@ -222,6 +222,51 @@ function serve() {
   check(await page.locator('#meals .entry-photos').count() === 0, 'removing the photo in edit takes it off the diary row');
   check(await page.evaluate(async () => (await DB.all('photos')).length) === 0, 'photo record is deleted from the device');
 
+  // times, grouped move, custom meals
+  await page.evaluate(async () => {
+    const all = await DB.all('entries');
+    await DB.saveMany('entries', all.map(e => ({ ...e, groupId: undefined })));
+  });
+  await page.click('#qa-add');
+  await page.waitForTimeout(300);
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  check(/^\d\d:\d\d$/.test(await page.inputValue('#amount-time')), 'new entry time defaults to now');
+  await page.fill('#amount-time', '07:45');
+  await page.selectOption('#amount-meal', 'Breakfast');
+  await page.click('#amount-more');
+  await page.waitForSelector('#add-dialog[open]');
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  await page.check('#amount-same');
+  check((await page.inputValue('#amount-time')) === '07:45' && await page.isDisabled('#amount-meal'), 'part of the same item follows its main food\'s time and meal');
+  await page.click('#amount-ok');
+  await page.waitForTimeout(400);
+  const grp = page.locator('#meals details.group', { hasText: '7:45' });
+  check(await grp.count() >= 1, 'item shows its time in the diary');
+  await grp.first().locator('summary').click();
+  await grp.first().locator('.group-parts [data-edit]').first().click();
+  await page.waitForSelector('#amount-dialog[open]');
+  await page.selectOption('#amount-meal', 'Dinner');
+  await page.fill('#amount-time', '19:10');
+  await page.click('#amount-ok');
+  await page.waitForTimeout(500);
+  const moved = await page.evaluate(async () => (await DB.all('entries')).filter(e => e.groupId).map(e => e.meal + '@' + e.time));
+  check(moved.length >= 2 && moved.every(m => m === 'Dinner@19:10'), 'changing a grouped item\'s meal/time moves all its parts: ' + moved.join(', '));
+  // custom meals: rename Snacks, add Brunch
+  await page.click('[data-tab="settings"]');
+  const mealInputs = page.locator('#meals-form .meal-row input');
+  check(await mealInputs.count() === 4, 'Settings lists the 4 default meals');
+  await mealInputs.nth(3).fill('Late snack');
+  await page.click('#meal-add');
+  await page.locator('#meals-form .meal-row input').nth(4).fill('Brunch');
+  await page.click('#meals-save');
+  await page.waitForTimeout(400);
+  await page.click('[data-tab="diary"]');
+  const heads = await page.$$eval('#meals .meal-head h3', h => h.map(x => x.textContent.trim()));
+  check(heads.join('|') === 'Breakfast|Lunch|Dinner|Late snack|Brunch', 'diary shows custom meals in order: ' + heads.join('|'));
+  check(await page.evaluate(async () => (await DB.getSetting('meals', [])).length) === 5, 'custom meals are saved (and synced as a setting)');
+
   // favorites first; remove from recents
   await page.click('#qa-add');
   await page.waitForTimeout(300);

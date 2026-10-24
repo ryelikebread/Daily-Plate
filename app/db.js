@@ -115,7 +115,7 @@ const DB = (() => {
 
 // Settings that follow you across devices when sync is on. Everything else
 // in "settings" (reminder times, sync token, etc.) stays on the device.
-const SYNCED_SETTINGS = ['goals'];
+const SYNCED_SETTINGS = ['goals', 'meals'];
 // Never exported in backups or uploaded: secrets and per-device bookkeeping.
 const DEVICE_ONLY_SETTINGS = ['syncToken', 'syncPass', 'syncGistId', 'syncLast', 'syncEnabled', 'remindersSent', 'lastBackup', 'seeded'];
 

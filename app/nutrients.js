@@ -92,7 +92,8 @@ const NUTRIENT_GROUPS = ['General', 'Vitamins', 'Minerals', 'Carbohydrates', 'Li
 // Shown as "Highlighted targets" on the food screen.
 const HIGHLIGHTED = ['fiber', 'vitc', 'iron', 'b12', 'calcium', 'folate', 'vita', 'potassium', 'sodium', 'vitd'];
 
-const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+const DEFAULT_MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
+const MEALS = [...DEFAULT_MEALS]; // changed in place when you customise meals
 
 // Values worked out from others when a food doesn't list them directly.
 function withDerived(n) {

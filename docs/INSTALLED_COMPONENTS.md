@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.11.0 (2026-10-24): (1) changing the meal or time of any part of a grouped item moves all its parts; (2) entries have an editable `time` (HH:MM, defaults to now for today; shown in the diary, sorts entries within a meal, CSV `time` column); (3) custom meals: setting `meals` (synced, added to SYNCED_SETTINGS), Settings > Meals to add, rename (renames existing entries), reorder, remove (entries of a removed meal show under "(other)"); `MEALS` in nutrients.js is changed in place, `DEFAULT_MEALS` holds the originals.
+
 1.10.1 (2026-10-24): fix for phones running mixed cached versions (old page with new script or the reverse). Service worker now precaches all files together bypassing the HTTP cache (a failed download keeps the old version), fetches with revalidation (`cache: no-cache`), cache name daily-plate-v14. index.html carries a version meta tag and ?v= on every script/style; app.js compares its version with the page's and, on mismatch, clears caches, unregisters the service worker and reloads once. A missing page element no longer crashes startup. tests/versions.test.js checks the versions agree. Your data (IndexedDB) is never touched by any of this.
 
 1.10.0 (2026-10-24): photos on diary entries. New IndexedDB store `photos` (DB_VERSION 3; id, entryId, date, blob, at; indexes entryId and date). Pictures are chosen with the phone's camera/library file picker (`<input type=file accept=image/*>`), shrunk in the browser to at most 1280 px JPEG, and kept only on that device: not synced, not in JSON backup (they would exceed the Gist size). Deleted with their entry (Undo restores them).

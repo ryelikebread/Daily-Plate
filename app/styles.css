@@ -183,3 +183,5 @@ details.group > summary::-webkit-details-marker { display: none; }
 .entry-photos img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
 .photo-view img { width: 100%; border-radius: 8px; margin-bottom: 8px; }
 .photo-view { max-height: 70vh; overflow-y: auto; }
+.meal-row { margin-bottom: 6px; align-items: center; }
+.meal-row input { flex: 1; min-width: 0; }

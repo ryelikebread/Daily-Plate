@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.11.0';
 
 // If the page is an older/newer copy than this script (a stale cached index.html),
 // a missing element gets a throw-away stand-in so the app degrades instead of crashing.
@@ -61,6 +61,7 @@ async function init() {
 async function reloadAfterSync() {
   await loadFoods();
   await loadSettings();
+  if (state.refreshMealsForm) state.refreshMealsForm();
   await renderDiary();
   if ($('#tab-foods').classList.contains('active')) renderFoodsList();
   if ($('#tab-trends').classList.contains('active')) renderTrends();
@@ -113,6 +114,8 @@ async function loadSettings() {
     offEnabled: true, usdaEnabled: true, usdaKey: '', weightUnit: 'kg',
     ...(await DB.getSetting('prefs', {})),
   };
+  const meals = await DB.getSetting('meals', null);
+  MEALS.splice(0, MEALS.length, ...(Array.isArray(meals) && meals.length ? meals : DEFAULT_MEALS));
 }
 
 async function saveSettings() {
@@ -178,8 +181,9 @@ function bindUI() {
   });
   $('#amount-same').addEventListener('change', () => {
     const on = $('#amount-same').checked && state.after;
-    if (on) $('#amount-meal').value = state.after.meal;
+    if (on) { $('#amount-meal').value = state.after.meal; if (state.after.time) $('#amount-time').value = state.after.time; }
     $('#amount-meal').disabled = !!on;
+    $('#amount-time').disabled = !!on;
   });
   $('#food-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); $('#food-menu').hidden = !$('#food-menu').hidden; });
   $$('#food-menu [data-act]').forEach(b => b.addEventListener('click', () => foodMenuAction(b.dataset.act)));
@@ -216,6 +220,7 @@ function bindUI() {
   // settings
   $('#save-goals').addEventListener('click', saveGoals);
   $('#rem-save').addEventListener('click', saveReminder);
+  state.refreshMealsForm = bindMealsForm();
   $('#rem-test').addEventListener('click', async () => {
     const ok = await ensureNotifyPermission();
     notify('Daily Plate test', ok ? 'Notifications are working.' : 'Notifications are blocked; you will see in-app banners instead.');
@@ -291,12 +296,13 @@ async function renderDiary() {
     ${bars}`;
 
   // meals
-  $('#meals').innerHTML = MEALS.map(meal => {
-    const items = entries.filter(e => e.meal === meal);
+  const { list: mealList, extra: extraMeals } = mealsFor(entries);
+  $('#meals').innerHTML = mealList.map(meal => {
+    const items = entries.filter(e => e.meal === meal).sort(byTime);
     const mt = totalsOf(items);
     return `<div class="card meal">
-      <div class="meal-head"><h3>${meal}</h3><span class="hint">${fmt(mt.kcal || 0, 'kcal')} kcal</span>
-        <button class="small" data-add="${meal}">+ Add</button></div>
+      <div class="meal-head"><h3>${esc(meal)}${extraMeals.includes(meal) ? ' <span class="hint">(other)</span>' : ''}</h3><span class="hint">${fmt(mt.kcal || 0, 'kcal')} kcal</span>
+        <button class="small" data-add="${esc(meal)}">+ Add</button></div>
       ${groupItems(items).map(g => g.length > 1 ? groupHtml(g) : entryHtml(g[0])).join('') || '<div class="hint empty">Nothing logged yet.</div>'}
     </div>`;
   }).join('');
@@ -374,6 +380,63 @@ async function decoratePhotos() {
   }
 }
 
+// ----- times and meals -----
+const nowTime = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+function timeLabel(t) {
+  if (!/^\d{2}:\d{2}$/.test(t || '')) return '';
+  return new Date('2000-01-01T' + t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+// meals shown in the diary: your list, then any meal names found on entries that aren't in it
+function mealsFor(entries) {
+  const extra = [...new Set(entries.map(e => e.meal))].filter(m => m && !MEALS.includes(m));
+  return { list: [...MEALS, ...extra], extra };
+}
+// order inside a meal: by time when set, otherwise as added
+const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.createdAt || 0) - (b.createdAt || 0);
+
+function renderMealsForm(list) {
+  $('#meals-form').innerHTML = list.map((m, i) => `<div class="row meal-row" data-orig="${esc(m.orig)}">
+    <input type="text" value="${esc(m.name)}" maxlength="30" aria-label="Meal name">
+    <button type="button" class="small ghost" data-mup="${i}" aria-label="Move up">↑</button>
+    <button type="button" class="small ghost" data-mdown="${i}" aria-label="Move down">↓</button>
+    <button type="button" class="small ghost" data-mdel="${i}" aria-label="Remove meal">✕</button></div>`).join('');
+}
+function readMealsForm() {
+  return [...$$('#meals-form .meal-row')].map(r => ({ orig: r.dataset.orig, name: r.querySelector('input').value.trim() }));
+}
+function bindMealsForm() {
+  const refresh = () => renderMealsForm(MEALS.map(m => ({ orig: m, name: m })));
+  $('#meals-form').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const list = readMealsForm();
+    const i = Number(b.dataset.mup ?? b.dataset.mdown ?? b.dataset.mdel);
+    if (b.dataset.mup != null && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    if (b.dataset.mdown != null && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+    if (b.dataset.mdel != null) list.splice(i, 1);
+    renderMealsForm(list);
+  });
+  $('#meal-add').addEventListener('click', () => { renderMealsForm([...readMealsForm(), { orig: '', name: '' }]); const ins = $$('#meals-form input'); ins[ins.length - 1].focus(); });
+  $('#meals-save').addEventListener('click', async () => {
+    const list = readMealsForm().filter(m => m.name);
+    const names = list.map(m => m.name);
+    if (!names.length) return toast('Keep at least one meal.');
+    if (new Set(names.map(n => n.toLowerCase())).size !== names.length) return toast('Meal names must be different.');
+    const renames = list.filter(m => m.orig && m.orig !== m.name);
+    if (renames.length) {
+      const map = new Map(renames.map(m => [m.orig, m.name]));
+      const changed = (await DB.all('entries')).filter(e => map.has(e.meal)).map(e => ({ ...e, meal: map.get(e.meal) }));
+      if (changed.length) await DB.saveMany('entries', changed);
+    }
+    MEALS.splice(0, MEALS.length, ...names);
+    await DB.setSetting('meals', names);
+    renderMealsForm(names.map(n => ({ orig: n, name: n })));
+    await renderDiary();
+    toast('Meals saved.');
+  });
+  refresh();
+  return refresh;
+}
+
 // ----- grouped items: foods marked "part of the same item" share a groupId -----
 const groupEntries = new Map();
 function groupItems(items) {
@@ -391,7 +454,7 @@ function entryHtml(e, part) {
   return `<div class="entry${part ? ' part' : ''}" data-id="${e.id}">
     <div class="entry-main" data-edit="${e.id}">
       <div>${esc(e.food.name)}${e.food.brand ? ` <span class="hint">· ${esc(e.food.brand)}</span>` : ''}</div>
-      <div class="hint">${esc(amountLabel(e))} · P ${fmt(n.protein)} · C ${fmt(n.carbs)} · F ${fmt(n.fat)}</div>
+      <div class="hint">${e.time ? timeLabel(e.time) + ' · ' : ''}${esc(amountLabel(e))} · P ${fmt(n.protein)} · C ${fmt(n.carbs)} · F ${fmt(n.fat)}</div>
     </div>
     <div class="entry-kcal">${fmt(n.kcal, 'kcal')}</div>
     <button class="icon" data-del="${e.id}" aria-label="Delete">✕</button>
@@ -403,7 +466,7 @@ function groupHtml(g) {
   const t = totalsOf(g); const gid = g[0].groupId;
   return `<details class="group" data-gid="${gid}">
     <summary class="entry"><div class="entry-main"><div>${esc(g[0].food.name)} <span class="hint">+ ${g.length - 1} more</span></div>
-      <div class="hint">${g.length} parts · P ${fmt(t.protein)} · C ${fmt(t.carbs)} · F ${fmt(t.fat)}</div></div>
+      <div class="hint">${g[0].time ? timeLabel(g[0].time) + ' · ' : ''}${g.length} parts · P ${fmt(t.protein)} · C ${fmt(t.carbs)} · F ${fmt(t.fat)}</div></div>
       <div class="entry-kcal">${fmt(t.kcal, 'kcal')}</div>
       <button type="button" class="icon" data-delgroup="${gid}" aria-label="Delete whole item">✕</button></summary>
     <div class="group-parts">${g.map(e => entryHtml(e, true)).join('')}
@@ -478,7 +541,9 @@ async function copyYesterday() {
 // Meal that fits the current time of day (you can change it before saving).
 function mealForNow() {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
-  return h < 10.5 ? 'Breakfast' : h < 15 ? 'Lunch' : h >= 17 && h < 21 ? 'Dinner' : 'Snacks';
+  const usual = h < 10.5 ? 'Breakfast' : h < 15 ? 'Lunch' : h >= 17 && h < 21 ? 'Dinner' : 'Snacks';
+  if (MEALS.includes(usual)) return usual;
+  return MEALS[Math.min(MEALS.length - 1, Math.floor((h / 24) * MEALS.length))]; // custom meals: spread across the day
 }
 
 function openAddDialog(meal, after) {
@@ -634,12 +699,15 @@ function openAmountDialog(food, entry) {
   renderFoodHeader();
   const opts = unitOptions(food);
   $('#amount-unit').innerHTML = opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
-  $('#amount-meal').innerHTML = MEALS.map(m => `<option>${m}</option>`).join('');
+  const mealOpts = entry && entry.meal && !MEALS.includes(entry.meal) ? [...MEALS, entry.meal] : MEALS;
+  $('#amount-meal').innerHTML = mealOpts.map(m => `<option>${esc(m)}</option>`).join('');
   if (entry) {
     $('#amount-qty').value = entry.qty;
     $('#amount-unit').value = ['g', 'oz'].includes(entry.unit) ? entry.unit : 's:' + entry.unit;
     $('#amount-meal').value = entry.meal;
+    $('#amount-time').value = entry.time || '';
   } else {
+    $('#amount-time').value = state.date === todayStr() ? nowTime() : '';
     $('#amount-qty').value = opts.length > 2 ? 1 : 100;
     $('#amount-unit').value = opts[0].value;
     $('#amount-meal').value = state.addMeal;
@@ -655,6 +723,7 @@ function openAmountDialog(food, entry) {
   $('#amount-same-row').hidden = !after;
   $('#amount-same').checked = false; // default: a separate entry
   $('#amount-meal').disabled = false;
+  $('#amount-time').disabled = false;
   if (after) $('#amount-same-text').textContent = `Part of the same item as ${after.name}`;
   renderAmountPreview();
   $('#amount-dialog').showModal();
@@ -792,6 +861,7 @@ async function onAmountClose() {
   const entry = {
     ...base,
     meal: $('#amount-meal').value,
+    time: $('#amount-time').value || '',
     foodId: food.id,
     // snapshot of the food, so the archive stays accurate if the food is edited later
     food: { name: food.name, brand: food.brand || '', source: food.source, per100: food.per100 },
@@ -805,14 +875,20 @@ async function onAmountClose() {
       if (!prev.groupId) { prev.groupId = uid(); await DB.save('entries', prev); }
       entry.groupId = prev.groupId;
       entry.meal = prev.meal;
+      entry.time = prev.time || entry.time;
     }
   }
   await DB.save('entries', entry);
+  // a grouped item moves as a whole: new meal or time on one part applies to all parts
+  if (state.editingEntry && entry.groupId && (base.meal !== entry.meal || (base.time || '') !== entry.time)) {
+    const sibs = (await DB.byIndex('entries', 'date', entry.date)).filter(e => e.groupId === entry.groupId && e.id !== entry.id);
+    if (sibs.length) await DB.saveMany('entries', sibs.map(e => ({ ...e, meal: entry.meal, time: entry.time })));
+  }
   for (const id of removed) await DB.del('photos', id);
   for (const p of photos) if (p.isNew) await DB.put('photos', { id: p.id, entryId: entry.id, date: entry.date, blob: p.blob, at: Date.now() });
   photos.forEach(p => URL.revokeObjectURL(p.url));
   renderDiary();
-  if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal, { entryId: entry.id, name: food.name, meal: entry.meal }); }
+  if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal, { entryId: entry.id, name: food.name, meal: entry.meal, time: entry.time }); }
   else state.after = null;
 }
 
@@ -841,7 +917,7 @@ async function onQuickClose() {
   ['kcal', 'protein', 'carbs', 'fat'].forEach(k => { const v = parseFloat($('#quick-' + k).value); if (Number.isFinite(v)) per100[k] = v; });
   if (per100.kcal == null) return toast('Enter calories for a quick add.');
   await DB.save('entries', {
-    id: uid(), date: state.date, meal: state.addMeal, createdAt: Date.now(), foodId: null,
+    id: uid(), date: state.date, meal: state.addMeal, time: state.date === todayStr() ? nowTime() : '', createdAt: Date.now(), foodId: null,
     food: { name: $('#quick-name').value || 'Quick add', brand: '', source: 'quick', per100 },
     qty: 1, unit: 'quick', grams: 100,
   });
@@ -1236,9 +1312,9 @@ async function exportJson() {
 }
 
 async function exportEntriesCsv() {
-  const entries = (await DB.all('entries')).sort((a, b) => a.date.localeCompare(b.date) || MEALS.indexOf(a.meal) - MEALS.indexOf(b.meal));
-  const head = ['date', 'meal', 'food', 'brand', 'source', 'amount', 'unit', 'grams', 'group', ...NUTRIENTS.map(n => `${n.key}_${n.unit}`)];
-  const rows = entries.map(e => { const n = entryNutrients(e); return [e.date, e.meal, e.food.name, e.food.brand, e.food.source, e.qty, e.unit, round2(e.grams), e.groupId || '', ...NUTRIENTS.map(x => round2(n[x.key]))]; });
+  const entries = (await DB.all('entries')).sort((a, b) => a.date.localeCompare(b.date) || MEALS.indexOf(a.meal) - MEALS.indexOf(b.meal) || byTime(a, b));
+  const head = ['date', 'meal', 'time', 'food', 'brand', 'source', 'amount', 'unit', 'grams', 'group', ...NUTRIENTS.map(n => `${n.key}_${n.unit}`)];
+  const rows = entries.map(e => { const n = entryNutrients(e); return [e.date, e.meal, e.time || '', e.food.name, e.food.brand, e.food.source, e.qty, e.unit, round2(e.grams), e.groupId || '', ...NUTRIENTS.map(x => round2(n[x.key]))]; });
   download(`daily-plate-entries-${todayStr()}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv');
 }
 
