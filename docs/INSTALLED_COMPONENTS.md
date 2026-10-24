@@ -4,7 +4,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 
 ## Summary
 
-- **Runtime dependencies: none.** Plain HTML, CSS and JavaScript. No frameworks, no npm packages, no build step, no server-side code, no accounts, no analytics.
+- **Runtime dependencies: one bundled library** (ZXing barcode reader, below). Otherwise plain HTML, CSS and JavaScript. No frameworks, no build step, no server-side code, no accounts, no analytics.
 - **Runs in**: any modern browser (Chrome, Edge, Firefox, Safari).
 - **Stores data in**: the browser's IndexedDB on the device you use it on.
 
@@ -16,6 +16,9 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/styles.css` | Look and feel, light and dark mode, phone-sized layout. |
 | `app/app.js` | Main logic: diary, adding food, amounts, custom foods, recipes, trends/charts, goals, reminders, export/import. |
 | `app/db.js` | Small wrapper around the browser's IndexedDB database; records change times and deletions so sync can merge. |
+| `app/scanner.js` | Camera barcode scanner: opens the camera, reads frames, falls back to reading a photo, explains camera-permission problems. |
+| `app/vendor/zxing.min.js` | Bundled barcode-reading library (see Third-party code). Loaded only when you scan. |
+| `app/vendor/zxing-LICENSE.txt` | Its licence text. |
 | `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
 | `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central. Converts results to the app's per-100 g format. |
 | `app/nutrients.js` | The 14 tracked nutrients, their units and default goals, and the four meals. |
@@ -26,6 +29,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/apple-touch-icon.png` | 180×180 Home Screen icon for iPhone/iPad. |
 | `app/icon-192.png`, `app/icon-512.png` | Install icons for Android/Chrome. |
 | `tests/smoke.test.js` | Automated end-to-end test (developer use only). |
+| `tests/scanner.test.js` | Automated scanner test with generated barcodes and a fake camera (developer use only). |
 | `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
 | `docs/USER_GUIDE.md` | How to run and use the app. |
 | `docs/INSTALLED_COMPONENTS.md` | This file. |
@@ -37,7 +41,7 @@ When you open the app, the browser creates:
 | Item | Name | Contents |
 |---|---|---|
 | IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
-| Cache Storage | `daily-plate-v3` | Copies of the app's own files for offline use. No personal data. |
+| Cache Storage | `daily-plate-v4` | Copies of the app's own files for offline use. No personal data. |
 | Service worker | `sw.js` | Registered for the site's address. Only when served over http(s). |
 | Permissions (optional) | Notifications, Camera | Asked only when you save a reminder / press Scan. |
 | Persistent storage request | — | The app asks the browser not to auto-clear its data. The browser decides. |
@@ -54,6 +58,14 @@ To remove everything: browser settings → site data for the app's address → C
 | GitHub Gist API (`api.github.com`, `gist.githubusercontent.com`) | Sync between devices (only if you turn it on) | Your data **encrypted on the device** (AES-256-GCM, key from your passphrase via PBKDF2-SHA-256, 250,000 rounds) and your GitHub token | Your own private data |
 
 Food lookups can be turned off in Settings; sync is off until you turn it on. Nothing else is contacted.
+
+## Third-party code
+
+| Library | Version | Licence | Purpose | Where |
+|---|---|---|---|---|
+| ZXing for JavaScript (`@zxing/library`) | 0.21.3 | Apache License 2.0 (licence file shipped in the package; its package.json says MIT) | Reads barcodes from camera frames and photos. Used on iPhone and any browser without a built-in barcode reader; browsers that have one (Android Chrome) use the built-in reader instead. | `app/vendor/zxing.min.js` (unmodified `umd/index.min.js` from npm, SHA-256 `d7cc8f69dd70bdcf3ac00c9ae572bf2acb9f4132ba379c72df842e4db918652d`), licence in `app/vendor/zxing-LICENSE.txt` |
+
+It's stored inside the app (not loaded from a CDN), so scanning works offline and nothing extra is downloaded from third parties. To update it: `npm pack @zxing/library@<version>`, copy `package/umd/index.min.js` to `app/vendor/zxing.min.js`, and bump the cache name in `app/sw.js`.
 
 ## Sync details
 
@@ -88,6 +100,7 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.3.0 (2026-10-24): camera and photo barcode scanning (works on iPhone).
 1.2.0 (2026-10-24): encrypted sync between devices via a secret GitHub Gist.
 1.1.0 (2026-10-24): iPhone Home Screen support, fixed reminder banner always showing.
 1.0.0 (2026-10-24): first release.

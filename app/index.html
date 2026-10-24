@@ -187,10 +187,9 @@
     <div class="row">
       <input type="text" id="add-barcode" placeholder="Barcode" inputmode="numeric" style="width:10em">
       <button type="button" id="add-barcode-go" class="small">Look up</button>
-      <button type="button" id="add-scan" class="small ghost" hidden>Scan</button>
+      <button type="button" id="add-scan" class="small primary">📷 Scan</button>
       <button type="button" id="add-quick" class="small ghost">Quick add calories</button>
     </div>
-    <video id="scan-video" playsinline hidden></video>
     <div id="add-status" class="hint"></div>
     <div id="add-results" class="results"></div>
     <div class="row end"><button value="cancel">Close</button></div>
@@ -222,7 +221,8 @@
     <h2 id="food-dialog-title">Custom food</h2>
     <label>Name <input type="text" id="food-name" required></label>
     <label>Brand (optional) <input type="text" id="food-brand"></label>
-    <label>Barcode (optional) <input type="text" id="food-barcode" inputmode="numeric"></label>
+    <label for="food-barcode">Barcode (optional)</label>
+    <div class="row"><input type="text" id="food-barcode" inputmode="numeric" style="flex:1;min-width:0"><button type="button" id="food-scan" class="small">📷 Scan</button></div>
     <div class="row">
       <label class="inline">Nutrition values are per
         <input type="number" id="food-basis" value="100" step="any" min="0.01" style="width:5em"> g
@@ -277,6 +277,24 @@
   </form>
 </dialog>
 
+<!-- Barcode scanner dialog -->
+<dialog id="scan-dialog" class="scan-dialog">
+  <div class="dialog-body">
+    <h2>Scan barcode</h2>
+    <div class="scan-view">
+      <video id="scan-video" playsinline muted autoplay></video>
+      <div class="scan-guide" aria-hidden="true"></div>
+    </div>
+    <canvas id="scan-canvas" hidden></canvas>
+    <p id="scan-status" class="hint" role="status"></p>
+    <div class="row">
+      <label class="button-like">Scan a photo<input type="file" id="scan-photo" accept="image/*" hidden></label>
+      <button type="button" id="scan-retry" class="ghost">Restart camera</button>
+      <button type="button" id="scan-cancel">Cancel</button>
+    </div>
+  </div>
+</dialog>
+
 <div id="toast" class="toast" hidden></div>
 
 <script src="nutrients.js"></script>
@@ -284,6 +302,7 @@
 <script src="db.js"></script>
 <script src="lookup.js"></script>
 <script src="sync.js"></script>
+<script src="scanner.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

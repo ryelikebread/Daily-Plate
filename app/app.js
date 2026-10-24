@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -142,8 +142,8 @@ function bindUI() {
   $('#add-online').addEventListener('click', onlineSearch);
   $('#add-barcode-go').addEventListener('click', () => barcodeLookup($('#add-barcode').value.trim()));
   $('#add-quick').addEventListener('click', () => { $('#add-dialog').close(); openQuickAdd(); });
-  if ('BarcodeDetector' in window) { $('#add-scan').hidden = false; $('#add-scan').addEventListener('click', scanBarcode); }
-  $('#add-dialog').addEventListener('close', stopScan);
+  $('#add-scan').addEventListener('click', scanBarcode);
+  $('#food-scan').addEventListener('click', async () => { const c = await Scanner.scan(); if (c) $('#food-barcode').value = c; });
 
   // amount dialog
   $('#amount-qty').addEventListener('input', renderAmountPreview);
@@ -393,13 +393,17 @@ async function onlineSearch() {
 }
 
 async function barcodeLookup(code) {
+  code = String(code || '').replace(/\D/g, '');
   if (!code) return;
-  const local = [...state.foods.values()].find(f => f.barcode === code);
+  const forms = Scanner.variants(code); // UPC-A and EAN-13 spellings of the same code
+  const local = [...state.foods.values()].find(f => f.barcode && forms.includes(String(f.barcode)));
   if (local) return pickFood(local);
-  $('#add-status').textContent = 'Looking up barcode…';
+  $('#add-status').textContent = 'Looking up barcode ' + code + '…';
   try {
-    const f = await Lookup.offBarcode(code);
-    if (f) return pickFood(f);
+    for (const c of forms) {
+      const f = await Lookup.offBarcode(c);
+      if (f) return pickFood(f);
+    }
     $('#add-status').textContent = 'Barcode not found. You can create it as a custom food.';
     $('#add-results').innerHTML = `<button type="button" class="result" id="create-from-barcode">+ Create custom food with barcode ${esc(code)}</button>`;
     $('#create-from-barcode').addEventListener('click', () => { $('#add-dialog').close(); openFoodEditor(null, { barcode: code }); });
@@ -408,29 +412,11 @@ async function barcodeLookup(code) {
   }
 }
 
-let scanStream = null;
 async function scanBarcode() {
-  const video = $('#scan-video');
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = scanStream; video.hidden = false; await video.play();
-    const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-    $('#add-status').textContent = 'Point the camera at a barcode…';
-    const tick = async () => {
-      if (!scanStream) return;
-      const codes = await detector.detect(video).catch(() => []);
-      if (codes.length) { const c = codes[0].rawValue; stopScan(); $('#add-barcode').value = c; barcodeLookup(c); }
-      else requestAnimationFrame(tick);
-    };
-    tick();
-  } catch (err) {
-    $('#add-status').textContent = 'Camera unavailable: ' + err.message;
-  }
-}
-function stopScan() {
-  if (scanStream) scanStream.getTracks().forEach(t => t.stop());
-  scanStream = null;
-  $('#scan-video').hidden = true;
+  const code = await Scanner.scan();
+  if (!code) return;
+  $('#add-barcode').value = code;
+  barcodeLookup(code);
 }
 
 async function pickFood(food) {

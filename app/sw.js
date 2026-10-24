@@ -1,7 +1,7 @@
 // Service worker: caches the app's own files so it opens offline,
 // and opens the diary when a reminder notification is clicked.
-const CACHE = 'daily-plate-v3';
-const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'db.js', 'lookup.js', 'sync.js', 'nutrients.js', 'starter-foods.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'daily-plate-v4';
+const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'db.js', 'lookup.js', 'sync.js', 'scanner.js', 'vendor/zxing.min.js', 'nutrients.js', 'starter-foods.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

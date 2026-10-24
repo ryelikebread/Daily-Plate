@@ -40,7 +40,7 @@ It works offline after the first open. Online food search needs a connection.
 
 **iPhone limits to know about**
 - iPhone pauses web apps in the background, so in-app reminders only appear while Daily Plate is open or when you return to it. The 9 PM Google Calendar event is your dependable reminder.
-- The camera **Scan** button doesn't appear on iPhone (Safari lacks the barcode reader it uses). Type the barcode number instead.
+- The first time you tap **📷 Scan**, iPhone asks to use the camera: tap **Allow**. Home Screen apps may ask again after being closed for a while; that's normal.
 - Exports open the iPhone share sheet: choose **Save to Files** to keep the backup.
 
 **Hosting (getting an HTTPS address)**
@@ -78,8 +78,23 @@ In the Add dialog:
 |---|---|
 | Your foods | Start typing. Searches foods you've saved, recipes, and the built-in basics. With an empty box, it shows your most-used foods from the last 30 days. |
 | Online search | Type a name and press **Enter** or **Search online**. Searches Open Food Facts and USDA FoodData Central. Any food you pick is saved to your foods so it works offline next time. |
-| Barcode | Type the number and press **Look up**. On Android Chrome a **Scan** button uses the camera. |
+| Barcode | Tap **📷 Scan** and point the camera at the barcode, or type the number and press **Look up**. See *Scanning barcodes* below. |
 | Quick add | Just calories (and optionally protein/carbs/fat) when you don't know the exact food. |
+
+### Scanning barcodes
+
+1. In the Add dialog, tap **📷 Scan**. Allow camera access the first time.
+2. Fit the barcode inside the white box, about a hand-width away, in good light. It reads it by itself (the phone buzzes on Android) and looks the product up.
+3. If the product is found, choose the amount and save. If not, tap **Create custom food with barcode…**: the barcode is filled in, so next time a scan finds your own food instantly.
+
+Other ways in the scanner:
+- **Scan a photo**: pick or take a photo of the barcode instead of using the live camera. Handy if camera access is blocked or the live view won't focus.
+- **Restart camera** if the picture freezes.
+- In **Foods → + Custom food**, the **📷 Scan** button next to Barcode fills the number in for you.
+
+It reads the barcodes on packaged food: EAN-13, EAN-8, UPC-A, UPC-E (and Code 128). It works offline, but finding the product needs an internet connection unless you've scanned it before.
+
+If it says **camera access is blocked**: on iPhone open Settings → Apps → Safari → Camera → **Allow** (on older iOS: Settings → Safari → Camera), then tap Restart camera. On a computer, click the camera icon in the address bar and allow it.
 
 After picking a food, choose the amount: a serving size (e.g. "1 medium"), grams, or ounces. The preview shows the calories and macros before you save.
 
@@ -194,6 +209,7 @@ The Settings page shows whether storage is "persistent" and when you last backed
 | Online search fails entirely | You're offline, or the network blocks those sites. Local foods still work. |
 | No notifications | Allow notifications for the site in browser settings, keep the app open, and rely on the calendar event. |
 | Data missing | Check you're on the same device, browser and address (e.g. `localhost:8080`, not `:8000`). Restore your latest backup. |
+| Scanner won't read a barcode | Add more light, hold steady, move a little further away so the whole barcode fits in the box, or use **Scan a photo** or type the number. |
 | Nutrient total looks low | Missing values in a food count as zero. Online and label data often omits vitamins and minerals. |
 
 ---
@@ -207,6 +223,6 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-`node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
+`node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
