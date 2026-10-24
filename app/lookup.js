@@ -6,6 +6,8 @@
 //                           groups that name major chains
 //      Survey (FNDDS)     – foods "as eaten", incl. many "from fast food / restaurant" items
 //      Foundation         – detailed generic foods
+//  - MenuStat (NYC Health Department, NYC Open Data): nutrition for 100+ U.S. chain
+//      restaurants' menus (historical snapshots, newest year kept per item)
 // Results are converted to the app's per-100 g format and tagged with a kind:
 // 'brand', 'restaurant' or 'generic'. Searches are cached on the device so
 // repeated searches are instant and still work offline.
@@ -14,6 +16,8 @@ const Lookup = (() => {
   const OFF_BASE = 'https://world.openfoodfacts.org';
   const FDC_BASE = 'https://api.nal.usda.gov/fdc/v1';
   const CACHE_DAYS = 14;
+  const MENUSTAT_URL = 'https://data.cityofnewyork.us/resource/qgc5-ecnb.json';
+  const MENUSTAT_PAGE = 40;
   const PAGE_SIZE = 25;
 
   // Restaurant chains, used to recognise restaurant items in the open data.
@@ -32,6 +36,37 @@ const Lookup = (() => {
   ];
   const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const CHAIN_KEYS = CHAINS.map(name => ({ name, key: norm(name) })).sort((a, b) => b.key.length - a.key.length);
+
+  // Spellings people type -> chain name ("mcdonalds", "mcd", "bk", "chickfila" ...)
+  const CHAIN_ALIASES = {
+    mcd: "McDonald's", mcds: "McDonald's", mickeyds: "McDonald's", macdonalds: "McDonald's", mcdonalds: "McDonald's",
+    bk: 'Burger King', burgerkings: 'Burger King', wendys: "Wendy's", tb: 'Taco Bell', kentuckyfriedchicken: 'KFC',
+    chickfila: 'Chick-fil-A', chikfila: 'Chick-fil-A', chickfilet: 'Chick-fil-A', cfa: 'Chick-fil-A',
+    dunkin: "Dunkin'", dunkindonuts: "Dunkin'", sbux: 'Starbucks', starbuck: 'Starbucks', dominos: "Domino's", dominoes: "Domino's",
+    papajohns: "Papa John's", papajons: "Papa John's", pandaexpress: 'Panda Express', panda: 'Panda Express', panerabread: 'Panera',
+    arbys: "Arby's", dq: 'Dairy Queen', innout: 'In-N-Out', innoutburger: 'In-N-Out', jackinthebox: 'Jack in the Box', jitb: 'Jack in the Box',
+    carlsjr: "Carl's Jr", carls: "Carl's Jr", hardees: "Hardee's", jerseymikes: "Jersey Mike's", jimmyjohns: "Jimmy John's",
+    raisingcanes: "Raising Cane's", canes: "Raising Cane's", chilis: "Chili's", applebees: "Applebee's", olivegarden: 'Olive Garden',
+    texasroadhouse: 'Texas Roadhouse', bww: 'Buffalo Wild Wings', buffalowildwings: 'Buffalo Wild Wings', bdubs: 'Buffalo Wild Wings',
+    pfchangs: "P.F. Chang's", changs: "P.F. Chang's", littlecaesars: 'Little Caesars', littlecaesar: 'Little Caesars', pizzahut: 'Pizza Hut',
+    popeyes: 'Popeyes', popeye: 'Popeyes', fiveguys: 'Five Guys', shakeshack: 'Shake Shack', whataburger: 'Whataburger',
+    timhortons: 'Tim Hortons', timmys: 'Tim Hortons', baskinrobbins: 'Baskin Robbins', krispykreme: 'Krispy Kreme',
+    noodlesandcompany: 'Noodles & Company', noodlesco: 'Noodles & Company', qdoba: 'Qdoba', moes: "Moe's", culvers: "Culver's",
+  };
+  const CHAIN_BY_KEY = new Map([...CHAIN_KEYS.map(c => [c.key, c.name]), ...Object.entries(CHAIN_ALIASES)]);
+
+  // Splits "mcdonalds big mac" into { chain: "McDonald's", rest: "big mac" }.
+  function parseQuery(q) {
+    const tokens = String(q || '').trim().split(/\s+/).filter(Boolean);
+    for (let size = Math.min(4, tokens.length); size >= 1; size--) {
+      for (let i = 0; i + size <= tokens.length; i++) {
+        const key = norm(tokens.slice(i, i + size).join(''));
+        const chain = CHAIN_BY_KEY.get(key) || (key.length > 4 && key.endsWith('s') ? CHAIN_BY_KEY.get(key.slice(0, -1)) : null);
+        if (chain) return { chain, rest: [...tokens.slice(0, i), ...tokens.slice(i + size)].join(' ') };
+      }
+    }
+    return { chain: null, rest: tokens.join(' ') };
+  }
 
   function chainOf(text) {
     const n = norm(text);
@@ -180,11 +215,58 @@ const Lookup = (() => {
     return list.find(f => same(f.barcode)) || null;
   }
 
+  // ---------- MenuStat (NYC Open Data, Socrata API) ----------
+  // Values are per menu item. Many rows list a serving weight; where they don't,
+  // the item is kept as one "serving as listed" (weight unknown) so numbers stay true.
+  const MS_MAP = { kcal: 'calories', fat: 'total_fat', satfat: 'saturated_fat', transfat: 'trans_fat', cholesterol: 'cholesterol', sodium: 'sodium', carbs: 'carbohydrates', protein: 'protein', sugar: 'sugar', fiber: 'dietary_fiber' };
+  const MS_GRAMS = { g: 1, gram: 1, grams: 1, oz: 28.3495, ounce: 28.3495, ml: 1, 'fl oz': 29.5735, floz: 29.5735 };
+
+  function menustatToFood(r) {
+    const val = {};
+    for (const [key, col] of Object.entries(MS_MAP)) { const v = parseFloat(r[col]); if (Number.isFinite(v)) val[key] = v; }
+    if (val.kcal == null || !r.item_name) return null;
+    const size = parseFloat(r.serving_size);
+    const unitFactor = MS_GRAMS[String(r.serving_size_unit || '').trim().toLowerCase()];
+    const grams = size > 0 && unitFactor ? size * unitFactor : null;
+    const known = grams && grams >= 5 && grams <= 3000;
+    const per100 = {};
+    for (const [k, v] of Object.entries(val)) per100[k] = Math.round((known ? (v * 100) / grams : v) * 100) / 100;
+    const brand = r.restaurant || '';
+    return {
+      id: 'menustat-' + r.menu_item_id, dataset: 'MenuStat', name: String(r.item_name).trim(), brand, source: 'menustat', kind: 'restaurant',
+      category: r.food_category || '', menuYear: r.year || '', note: r.item_description || '', barcode: '',
+      per100,
+      servings: known ? [{ label: `1 item (${r.serving_size} ${r.serving_size_unit})`, grams }] : [{ label: '1 serving as listed (weight not given)', grams: 100 }],
+      perServingOnly: !known,
+    };
+  }
+
+  const sodaWord = (w) => String(w).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  async function menustatSearch(parsed, page = 1) {
+    const where = [];
+    if (parsed.chain) where.push(`upper(restaurant) like '${parsed.chain.toUpperCase().replace(/[^A-Z0-9]+/g, '%')}%'`);
+    for (const w of parsed.rest.split(/\s+/).map(sodaWord).filter(Boolean)) where.push(`upper(restaurant_item_name) like '%${w}%'`);
+    if (!where.length) return { list: [], more: false };
+    const params = new URLSearchParams({ $where: where.join(' AND '), $order: 'year DESC, restaurant_item_name', $limit: MENUSTAT_PAGE, $offset: (page - 1) * MENUSTAT_PAGE });
+    const r = await fetch(`${MENUSTAT_URL}?${params}`);
+    if (!r.ok) throw new Error('MenuStat: HTTP ' + r.status);
+    const rows = await r.json();
+    const seen = new Set(); const list = [];
+    for (const row of rows) { // newest year first, so the first copy of an item is the newest
+      const k = norm(row.restaurant) + '|' + norm(row.item_name);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const f = menustatToFood(row);
+      if (f) list.push(f);
+    }
+    return { list, more: rows.length >= MENUSTAT_PAGE };
+  }
+
   // ---------- combined search ----------
   const FILTERS = {
-    all:         { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, keep: () => true },
-    brands:      { usda: ['Branded'], off: true, keep: f => f.kind === 'brand' || f.kind === 'restaurant' },
-    restaurants: { usda: ['SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, keep: f => f.kind === 'restaurant' },
+    all:         { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, menustat: true, keep: () => true },
+    brands:      { usda: ['Branded'], off: true, menustat: true, keep: f => f.kind === 'brand' || f.kind === 'restaurant' },
+    restaurants: { usda: ['SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, menustat: true, keep: f => f.kind === 'restaurant' },
     basic:       { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)'], off: false, keep: f => f.kind === 'generic' },
   };
 
@@ -218,28 +300,49 @@ const Lookup = (() => {
   }
 
   // search(q, {filter, page, settings}) -> {results, more, errors, fromCache}
+  // Puts the chain's own items and closest name matches first (stable otherwise).
+  function rank(list, parsed) {
+    const chainKey = parsed.chain ? norm(parsed.chain) : '';
+    const words = parsed.rest.split(/\s+/).map(norm).filter(Boolean);
+    const score = (f) => {
+      const name = norm(f.name), brand = norm(f.brand);
+      let sc = f.kind === 'restaurant' ? 1 : 0;
+      if (chainKey && (brand.includes(chainKey) || name.startsWith(chainKey))) sc += 4;
+      for (const w of words) if (name.includes(w)) sc += 2;
+      if (words.length && name === words.join('')) sc += 3;
+      return sc;
+    };
+    return list.map((f, i) => ({ f, i, sc: score(f) })).sort((a, b) => b.sc - a.sc || a.i - b.i).map(x => x.f);
+  }
+
   async function search(q, { filter = 'all', page = 1, settings = {} } = {}) {
     const F = FILTERS[filter] || FILTERS.all;
+    const parsed = parseQuery(q);
+    // chain spelled the way the databases write it ("mcdonalds big mac" -> "McDonald's big mac")
+    const q2 = parsed.chain ? `${parsed.chain} ${parsed.rest}`.trim() : q;
     const jobs = []; const names = [];
     if (settings.usdaEnabled !== false && F.usda.length) {
       names.push('USDA');
-      jobs.push(cached(`v2|usda|${F.usda.join('+')}|${page}|${q.toLowerCase()}`, () => usdaSearch(q, settings.usdaKey, F.usda, page)));
+      jobs.push(cached(`v3|usda|${F.usda.join('+')}|${page}|${q2.toLowerCase()}`, () => usdaSearch(q2, settings.usdaKey, F.usda, page)));
     }
     if (settings.offEnabled !== false && F.off) {
       names.push('Open Food Facts');
-      jobs.push(cached(`v2|off|${page}|${q.toLowerCase()}`, () => offSearch(q, page)));
+      jobs.push(cached(`v3|off|${page}|${q2.toLowerCase()}`, () => offSearch(q2, page)));
     }
-    if (!jobs.length) return { results: [], more: false, errors: ['Online lookup is turned off in Settings.'] };
+    if (settings.menustatEnabled !== false && F.menustat) {
+      names.push('MenuStat');
+      jobs.push(cached(`v3|menustat|${page}|${q2.toLowerCase()}`, () => menustatSearch(parsed, page)));
+    }
+    if (!jobs.length) return { results: [], more: false, errors: ['Online lookup is turned off in Settings.'], sources: [] };
     const settled = await Promise.allSettled(jobs);
     const ok = settled.filter(r => r.status === 'fulfilled').map(r => r.value);
-    const errors = settled.map((r, i) => (r.status === 'rejected' ? `${names[i]}: ${r.reason.message.replace(/^(USDA|Open Food Facts): /, '')}` : null)).filter(Boolean);
-    // USDA results first within each round: they include serving sizes and restaurant groups
-    const results = interleave(ok.map(v => v.list.filter(F.keep)));
-    return { results, more: ok.some(v => v.more), errors, fromCache: ok.length > 0 && ok.every(v => v.fromCache) };
+    const errors = settled.map((r, i) => (r.status === 'rejected' ? `${names[i]}: ${r.reason.message.replace(/^(USDA|Open Food Facts|MenuStat): /, '')}` : null)).filter(Boolean);
+    // lists: USDA, Open Food Facts, MenuStat; interleaved so the first screen shows a bit of each
+    let results = interleave(ok.map(v => v.list.filter(F.keep)));
+    if (parsed.chain || filter === 'restaurants') results = rank(results, parsed);
+    return { results, more: ok.some(v => v.more), errors, fromCache: ok.length > 0 && ok.every(v => v.fromCache), sources: names, chain: parsed.chain };
   }
 
-  // Open Food Facts first, then USDA Branded (UPC). One source failing
-  // (offline, rate limit) doesn't stop the other.
   async function barcode(code, settings = {}) {
     const hit = await DB.get('lookupCache', 'v2|barcode|' + code).catch(() => null);
     if (hit && hit.value) return hit.value;
@@ -274,5 +377,5 @@ const Lookup = (() => {
     return out.charAt(0).toUpperCase() + out.slice(1);
   }
 
-  return { search, barcode, usdaBarcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, FILTERS, CHAINS };
+  return { search, parseQuery, menustatSearch, menustatToFood, barcode, usdaBarcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, FILTERS, CHAINS };
 })();

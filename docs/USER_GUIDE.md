@@ -97,9 +97,19 @@ Above the results are four filters:
 - **More results** loads the next page.
 - Every search is saved on your device for two weeks, so repeating a search is instant and works offline.
 
-**Restaurant coverage is the weak spot.** Free, open sources cover the biggest U.S. chains for their classic items (often older menu versions), but not every chain or new item. When something's missing:
-1. Try the chain name plus the item, or the **All** filter. "Cheeseburger, from fast food" style items are good stand-ins.
-2. Or make it a custom food (Foods → + Custom food) from the nutrition info the chain publishes on its website or in-store. You only do it once; after that it's in your foods.
+**Restaurant coverage.** Restaurant search now uses three open sources together: **MenuStat** (the New York City Health Department's collection of menu nutrition for 100+ U.S. chains, published on NYC Open Data), USDA's fast-food and restaurant records, and Open Food Facts. Type the chain the way you would say it ("mcdonalds big mac", "bk whopper", "chick fil a nuggets"): common spellings and nicknames are recognised, the chain's own items are listed first, and the message under the search box shows which sources were searched and which chain was recognised.
+
+Honest limits:
+- MenuStat is a set of **historical snapshots** (each item shows its menu year, e.g. 2019). New and limited-time items, and chains that opened recently, are often missing, and recipes change.
+- MenuStat usually gives numbers **per menu item** without the item's weight. Those show as "1 serving as listed (weight not given)": log it by servings, not grams. Calories, fat, saturated and trans fat, cholesterol, sodium, carbs, sugar, fiber and protein are listed; vitamins and minerals are not, so those totals are minimums.
+- Not every chain is covered. If something is missing, use the next two options.
+
+**Food packs (Foods tab > Food packs).** For anything the open data lacks, make or get a pack: a CSV or JSON file of foods.
+1. **Download CSV template**, fill in one row per menu item (`name`, `brand`, `serving_label`, `serving_grams`, then calories and nutrients for that serving), and **Import pack file**. Rows without calories are skipped. Foods with a brand count as restaurant/brand foods.
+2. You can also **Import from web address** (for example a file shared in a GitHub repo, using its raw link), and **Export my foods** to share your own custom foods as a pack with someone else.
+3. Imported foods are your own foods: they work offline, sync, and can be edited. Only import packs from sources you trust, and check the numbers against the restaurant's published nutrition info.
+
+You can turn MenuStat off in Settings > Online food lookup.
 
 **Adding several foods in a row**: on the food screen, **Save & add another** saves the food to the meal and immediately reopens the add list for that same meal, so you can add sides, toppings or extras one after another. Press **Save** on the last one.
 
@@ -293,3 +303,6 @@ This means your phone mixed old and new files. Your food log is safe: it is stor
 2. If it still fails, wait 10 minutes and try again.
 3. Still failing: in Safari open the site (ryelikebread.github.io/Daily-Plate) in a normal tab and reload it. If you use the Home Screen icon, that should be enough.
 4. Last resort: iPhone Settings > Apps > Safari > Advanced > Website Data, remove only the Daily Plate entry. This DOES delete the data stored on the phone, so only do it if sync is on and has finished (or you made a backup in Settings), then turn sync on again and it pulls everything back.
+
+
+`node tests/restaurants.test.js` checks chain nicknames, MenuStat results and ranking, and food pack import.

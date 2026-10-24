@@ -58,6 +58,7 @@ function serve() {
     return r.fulfill({ json: { foods, totalPages: 2 } });
   });
   await ctx.route('https://world.openfoodfacts.org/**', r => offline ? r.abort('internetdisconnected') : r.fulfill({ json: { count: 2, products: OFF_PRODUCTS } }));
+  await ctx.route('https://data.cityofnewyork.us/**', r => offline ? r.abort('internetdisconnected') : r.fulfill({ json: [] }));
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(base);

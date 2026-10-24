@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 // If the page is an older/newer copy than this script (a stale cached index.html),
 // a missing element gets a throw-away stand-in so the app degrades instead of crashing.
@@ -111,7 +111,7 @@ async function loadSettings() {
   state.goals = { ...defGoals, ...(await DB.getSetting('goals', {})) };
   state.settings = {
     remEnabled: true, remTime: '21:00', remMeals: false, remMealTimes: '08:30,12:30,18:30',
-    offEnabled: true, usdaEnabled: true, usdaKey: '', weightUnit: 'kg',
+    offEnabled: true, usdaEnabled: true, menustatEnabled: true, usdaKey: '', weightUnit: 'kg',
     ...(await DB.getSetting('prefs', {})),
   };
   const meals = await DB.getSetting('meals', null);
@@ -220,6 +220,15 @@ function bindUI() {
   // settings
   $('#save-goals').addEventListener('click', saveGoals);
   $('#rem-save').addEventListener('click', saveReminder);
+  $('#pack-import').addEventListener('change', async (ev) => { const f = ev.target.files[0]; ev.target.value = ''; if (f) importPack(await f.text(), f.name); });
+  $('#pack-url').addEventListener('click', async () => {
+    const url = prompt('Web address of a pack file (CSV or JSON), for example a raw.githubusercontent.com link:');
+    if (!url) return;
+    try { const r = await fetch(url.trim()); if (!r.ok) throw new Error('HTTP ' + r.status); importPack(await r.text(), url); }
+    catch (err) { toast('Could not load the pack: ' + err.message); }
+  });
+  $('#pack-export').addEventListener('click', exportPack);
+  $('#pack-template').addEventListener('click', () => download('daily-plate-pack-template.csv', PACK_TEMPLATE, 'text/csv'));
   state.refreshMealsForm = bindMealsForm();
   $('#rem-test').addEventListener('click', async () => {
     const ok = await ensureNotifyPermission();
@@ -378,6 +387,82 @@ async function decoratePhotos() {
     strip.addEventListener('click', (ev) => { ev.stopPropagation(); showPhotos(urls); });
     host.appendChild(strip);
   }
+}
+
+// ----- food packs: CSV/JSON files of foods you can import or share -----
+const PACK_TEMPLATE = 'name,brand,serving_label,serving_grams,kcal,protein,carbs,fat,satfat,fiber,sugar,sodium\n'
+  + 'Example Burger,Example Diner,1 burger,220,540,25,46,28,10,3,9,950\n';
+
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ''));
+}
+
+// Turns pack rows into foods. Nutrient columns are amounts for the listed serving
+// (serving_grams, default 100), converted to the app's per-100 g format.
+function packFoods(text) {
+  const t = text.trim();
+  let items;
+  if (t.startsWith('[') || t.startsWith('{')) {
+    const j = JSON.parse(t);
+    items = Array.isArray(j) ? j : j.foods || [];
+  } else {
+    const [head, ...rows] = parseCsv(t);
+    const cols = head.map(h => h.trim().toLowerCase());
+    items = rows.map(r => Object.fromEntries(cols.map((c, i) => [c, (r[i] || '').trim()])));
+  }
+  const foods = [];
+  for (const it of items) {
+    const name = String(it.name || '').trim();
+    if (!name) continue;
+    const brand = String(it.brand || '').trim();
+    let per100 = {}, servings = [];
+    if (it.per100 && typeof it.per100 === 'object') {
+      per100 = it.per100;
+      servings = Array.isArray(it.servings) ? it.servings : [];
+    } else {
+      const g = parseFloat(it.serving_grams) > 0 ? parseFloat(it.serving_grams) : 100;
+      for (const n of NUTRIENTS) {
+        if (n.derived) continue;
+        const v = parseFloat(it[n.key]);
+        if (Number.isFinite(v)) per100[n.key] = Math.round((v * 100 / g) * 100) / 100;
+      }
+      if (g !== 100) servings = [{ label: it.serving_label || '1 serving', grams: g }];
+    }
+    if (per100.kcal == null) continue;
+    foods.push({
+      id: 'custom-pack-' + (brand + ' ' + name).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80),
+      source: 'custom', kind: brand ? 'restaurant' : 'generic', name, brand, barcode: String(it.barcode || ''),
+      per100, servings, createdAt: Date.now(), updatedAt: Date.now(), fromPack: true,
+    });
+  }
+  return foods;
+}
+
+async function importPack(text, label) {
+  try {
+    const foods = packFoods(text);
+    if (!foods.length) return toast('No foods found. Each row needs a name and kcal. See the CSV template.');
+    await DB.saveMany('foods', foods);
+    await loadFoods();
+    renderFoodsList();
+    toast(`Imported ${foods.length} food${foods.length === 1 ? '' : 's'} from ${String(label).split('/').pop()}.`);
+  } catch (err) { toast('Could not read that pack: ' + err.message); }
+}
+
+async function exportPack() {
+  const mine = [...state.foods.values()].filter(f => f.source === 'custom').map(f => ({ name: f.name, brand: f.brand || '', barcode: f.barcode || '', per100: f.per100, servings: f.servings || [] }));
+  if (!mine.length) return toast('You have no custom foods to export yet.');
+  download(`daily-plate-food-pack-${todayStr()}.json`, JSON.stringify({ pack: 'daily-plate', foods: mine }, null, 2), 'application/json');
 }
 
 // ----- times and meals -----
@@ -599,13 +684,13 @@ function renderResults(container, list, onPick) {
   el.innerHTML = list.map((f, i) => `<button type="button" class="result" data-i="${i}">
       <span>${f.favorite ? '<span class="fav-mark">★</span> ' : ''}${f.issue ? '⚠ ' : ''}<strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''}
       ${f.kind === 'restaurant' ? '<span class="tag tag-restaurant">restaurant</span>' : ''}<span class="tag tag-${f.source}">${sourceLabel(f.source)}</span></span>
-      <span class="hint">${fmt(f.per100.kcal, 'kcal')} kcal / 100 g · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</span>
+      <span class="hint">${fmt(f.per100.kcal, 'kcal')} kcal ${f.perServingOnly ? 'per serving' : '/ 100 g'} · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</span>
     </button>`).join('');
   el.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => onPick(list[+b.dataset.i])));
 }
 
 function sourceLabel(s) {
-  return { custom: 'mine', recipe: 'recipe', starter: 'basic', off: 'Open Food Facts', usda: 'USDA', quick: 'quick' }[s] || s;
+  return { custom: 'mine', recipe: 'recipe', starter: 'basic', off: 'Open Food Facts', usda: 'USDA', menustat: 'MenuStat', quick: 'quick' }[s] || s;
 }
 
 // Online search with a Brands / Restaurants / Basic filter and paging.
@@ -622,7 +707,8 @@ async function onlineSearch(nextPage = false) {
   const seen = new Set(search.results.map(f => f.id));
   search.results.push(...res.results.filter(f => !seen.has(f.id)));
   let msg = `${search.results.length} online result(s)` + (res.fromCache ? ' (saved from an earlier search)' : '') + '.';
-  if (!search.results.length && search.filter === 'restaurants') msg += ' Restaurant coverage in open data is limited: try the chain name plus the item (e.g. "taco bell burrito"), the All filter, or add it as a custom food from the chain\'s nutrition info.';
+  if (!nextPage && res.sources && res.sources.length) msg += ` Searched: ${res.sources.join(', ')}${res.chain ? ` (recognised chain: ${res.chain})` : ''}.`;
+  if (!search.results.length && (search.filter === 'restaurants' || res.chain)) msg += ' Not found in the open data. MenuStat menus are historical snapshots and newer items may be missing. Try fewer words, the All filter, add it as a custom food, or import a food pack (Foods tab).';
   if (res.errors.length) msg += ' ' + res.errors.join('; ');
   $('#add-status').textContent = msg;
   $('#add-more').hidden = !res.more;
@@ -733,6 +819,7 @@ function openAmountDialog(food, entry) {
 const DATASET_LABEL = { 'SR Legacy': 'USDA SR Legacy', 'Foundation': 'USDA Foundation Foods', 'Survey (FNDDS)': 'USDA FNDDS', 'Branded': 'USDA Branded Foods' };
 function sourceText(f) {
   if (f.source === 'usda') return DATASET_LABEL[f.dataset] || 'USDA FoodData Central';
+  if (f.source === 'menustat') return `MenuStat, NYC Health Dept (menu year ${f.menuYear || 'unknown'}${f.perServingOnly ? '; serving weight not listed' : ''})`;
   return { off: 'Open Food Facts', starter: 'Built-in basics (USDA, rounded)', custom: 'Your custom food', recipe: 'Your recipe', quick: 'Quick add' }[f.source] || f.source;
 }
 
@@ -792,6 +879,7 @@ async function foodMenuAction(act) {
 function sourceUrl(f) {
   if (f.source === 'off' && f.barcode) return `https://world.openfoodfacts.org/product/${encodeURIComponent(f.barcode)}`;
   if (f.source === 'usda' && /^usda-\d+$/.test(f.id)) return `https://fdc.nal.usda.gov/food-details/${f.id.slice(5)}/nutrients`;
+  if (f.source === 'menustat') return 'https://data.cityofnewyork.us/d/qgc5-ecnb';
   return null;
 }
 
@@ -803,7 +891,7 @@ function openIssueDialog() {
   $('#issue-source').hidden = !url;
   if (url) {
     $('#issue-source').href = url;
-    $('#issue-source').textContent = f.source === 'off' ? 'Fix it on Open Food Facts' : 'View it on USDA FoodData Central';
+    $('#issue-source').textContent = f.source === 'off' ? 'Fix it on Open Food Facts' : f.source === 'menustat' ? 'View the MenuStat dataset' : 'View it on USDA FoodData Central';
   }
   $('#issue-clear').hidden = !f.issue;
   updateIssueLink();
@@ -933,7 +1021,7 @@ function renderFoodsList() {
     .sort((a, b) => (order[a.source] ?? 9) - (order[b.source] ?? 9) || a.name.localeCompare(b.name));
   $('#foods-list').innerHTML = list.map(f => `<div class="card food-row">
       <div><strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''} <span class="tag tag-${f.source}">${sourceLabel(f.source)}</span>
-      <div class="hint">${fmt(f.per100.kcal, 'kcal')} kcal / 100 g · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</div></div>
+      <div class="hint">${fmt(f.per100.kcal, 'kcal')} kcal ${f.perServingOnly ? 'per serving' : '/ 100 g'} · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</div></div>
       <div class="row"><button class="small" data-edit="${esc(f.id)}">Edit</button><button class="small ghost" data-del="${esc(f.id)}">Delete</button></div>
     </div>`).join('') || '<p class="hint">No foods yet.</p>';
   $$('#foods-list [data-edit]').forEach(b => b.addEventListener('click', () => {
@@ -1171,6 +1259,7 @@ function renderSettings() {
   $('#rem-meal-times').value = s.remMealTimes;
   $('#off-enabled').checked = s.offEnabled;
   $('#usda-enabled').checked = s.usdaEnabled;
+  $('#menustat-enabled').checked = s.menustatEnabled !== false;
   $('#usda-key').value = s.usdaKey;
   $('#weight-unit').value = s.weightUnit;
   storageStatus();
@@ -1198,6 +1287,7 @@ async function saveLookup() {
   const s = state.settings;
   s.offEnabled = $('#off-enabled').checked;
   s.usdaEnabled = $('#usda-enabled').checked;
+  s.menustatEnabled = $('#menustat-enabled').checked;
   s.usdaKey = $('#usda-key').value.trim();
   s.weightUnit = $('#weight-unit').value;
   await saveSettings();

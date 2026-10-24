@@ -20,7 +20,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/vendor/zxing.min.js` | Bundled barcode-reading library (see Third-party code). Loaded only when you scan. |
 | `app/vendor/zxing-LICENSE.txt` | Its licence text. |
 | `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
-| `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation). Brands / Restaurants / Basic filters, restaurant-chain recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format. |
+| `app/lookup.js` | Online search: Open Food Facts (text + barcode), USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation) and MenuStat (NYC Open Data); chain nicknames/aliases, result ranking. Brands / Restaurants / Basic filters, restaurant-chain recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format. |
 | `app/nutrients.js` | The 62 tracked nutrients (groups, units, default targets, USDA and Open Food Facts codes), derived values (net carbs, omega-3/6 totals) and the four meals. |
 | `app/nutrient-info.js` | The "what it is / why it matters" explanation for every nutrient, written for Daily Plate, with links to the government sources. |
 | `app/report.js` | The nutrient report (energy ring, macro and highlighted targets, scores, full grouped summary) and the explanation pop-up. |
@@ -56,6 +56,7 @@ To remove everything: browser settings → site data for the app's address → C
 
 | Service | Used for | Sent | Licence of data |
 |---|---|---|---|
+| MenuStat via NYC Open Data (`data.cityofnewyork.us`, dataset qgc5-ecnb, Socrata API) | Chain restaurant menu items (nutrition per item; historical snapshots, newest year kept per item) | Your search words (chain and item words) | NYC Open Data: published by the NYC Department of Health and Mental Hygiene for public use; no API key; attribute the source |
 | Open Food Facts (`world.openfoodfacts.org`) | Packaged foods, barcode lookup | Your search words or the barcode | Open Database Licence (ODbL) |
 | USDA FoodData Central (`api.nal.usda.gov`) | Generic foods, U.S. branded products (Branded Foods), fast-food/restaurant items (SR Legacy groups and Survey/FNDDS) | Your search words and the API key | U.S. public domain (CC0) |
 
@@ -122,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 - Data on the iPhone is stored in that Home Screen app's own storage, separate from Safari and from any other device.
 
 ## Version
+
+1.12.0 (2026-10-24): expanded restaurant coverage. New MenuStat source (NYC Open Data dataset qgc5-ecnb; fields per menu item; calories, fats, cholesterol, sodium, carbs, sugar, fiber, protein; serving weight when listed). Chain nickname parsing (`Lookup.parseQuery`), canonical chain spelling sent to USDA/Open Food Facts, result ranking (chain, name words), search cache keys v3, search status lists sources searched. Setting `menustatEnabled`. Food packs: import CSV/JSON (file or web address) and export your custom foods (Foods tab). tests/restaurants.test.js. Sources considered but not used: FatSecret/Nutritionix/Edamam (proprietary or need a server), scraping any app or chain site.
 
 1.11.0 (2026-10-24): (1) changing the meal or time of any part of a grouped item moves all its parts; (2) entries have an editable `time` (HH:MM, defaults to now for today; shown in the diary, sorts entries within a meal, CSV `time` column); (3) custom meals: setting `meals` (synced, added to SYNCED_SETTINGS), Settings > Meals to add, rename (renames existing entries), reorder, remove (entries of a removed meal show under "(other)"); `MEALS` in nutrients.js is changed in place, `DEFAULT_MEALS` holds the originals.
 

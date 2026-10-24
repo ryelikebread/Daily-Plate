@@ -14,8 +14,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Daily Plate">
 <meta name="format-detection" content="telephone=no">
-<meta name="dp-version" content="1.11.0">
-<link rel="stylesheet" href="styles.css?v=1.11.0">
+<meta name="dp-version" content="1.12.0">
+<link rel="stylesheet" href="styles.css?v=1.12.0">
 </head>
 <body>
 <header class="topbar">
@@ -75,6 +75,16 @@
       <button id="new-food" class="primary">+ Custom food</button>
       <button id="new-recipe">+ Recipe</button>
     </div>
+    <details class="card" id="packs">
+      <summary><strong>Food packs</strong> <span class="hint">import or share restaurant and brand foods</span></summary>
+      <p class="hint">A pack is a CSV or JSON file of foods (for example a restaurant's menu you typed in once, or one a friend shared). Imported foods become your own foods.</p>
+      <div class="row">
+        <label class="button-like">Import pack file<input type="file" id="pack-import" accept=".csv,.json,text/csv,application/json" hidden></label>
+        <button id="pack-url" class="ghost">Import from web address</button>
+        <button id="pack-export" class="ghost">Export my foods</button>
+        <button id="pack-template" class="ghost">Download CSV template</button>
+      </div>
+    </details>
     <input type="search" id="foods-filter" placeholder="Filter your foods">
     <div id="foods-list"></div>
   </section>
@@ -160,6 +170,7 @@
       <h3>Online food lookup</h3>
       <label class="inline"><input type="checkbox" id="off-enabled" checked> Open Food Facts (packaged foods, barcodes)</label>
       <label class="inline"><input type="checkbox" id="usda-enabled" checked> USDA FoodData Central</label>
+      <label class="inline"><input type="checkbox" id="menustat-enabled" checked> MenuStat chain restaurant menus (NYC Open Data)</label>
       <label>USDA API key <input type="text" id="usda-key" placeholder="DEMO_KEY"></label>
       <p class="hint">Get a free key at api.data.gov/signup. DEMO_KEY works but is rate-limited.</p>
       <label class="inline">Weight unit
@@ -211,7 +222,7 @@
     <div id="add-status" class="hint"></div>
     <div id="add-results" class="results"></div>
     <div class="row"><button type="button" id="add-more" class="small ghost" hidden>More results</button></div>
-    <p class="hint attribution" id="add-attribution" hidden>Online results: USDA FoodData Central (public domain) and Open Food Facts (Open Database Licence, openfoodfacts.org). Check the label when it matters.</p>
+    <p class="hint attribution" id="add-attribution" hidden>Online results: USDA FoodData Central (public domain), Open Food Facts (Open Database Licence, openfoodfacts.org) and MenuStat from the NYC Health Department via NYC Open Data (historical restaurant menu snapshots). Check the label when it matters.</p>
     <div class="row end"><button value="cancel">Close</button></div>
   </form>
 </dialog>
@@ -377,14 +388,14 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="nutrients.js?v=1.11.0"></script>
-<script src="nutrient-info.js?v=1.11.0"></script>
-<script src="report.js?v=1.11.0"></script>
-<script src="starter-foods.js?v=1.11.0"></script>
-<script src="db.js?v=1.11.0"></script>
-<script src="lookup.js?v=1.11.0"></script>
-<script src="sync.js?v=1.11.0"></script>
-<script src="scanner.js?v=1.11.0"></script>
-<script src="app.js?v=1.11.0"></script>
+<script src="nutrients.js?v=1.12.0"></script>
+<script src="nutrient-info.js?v=1.12.0"></script>
+<script src="report.js?v=1.12.0"></script>
+<script src="starter-foods.js?v=1.12.0"></script>
+<script src="db.js?v=1.12.0"></script>
+<script src="lookup.js?v=1.12.0"></script>
+<script src="sync.js?v=1.12.0"></script>
+<script src="scanner.js?v=1.12.0"></script>
+<script src="app.js?v=1.12.0"></script>
 </body>
 </html>
