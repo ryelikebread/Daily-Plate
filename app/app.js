@@ -1,7 +1,9 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 
-const $ = (sel) => document.querySelector(sel);
+// If the page is an older/newer copy than this script (a stale cached index.html),
+// a missing element gets a throw-away stand-in so the app degrades instead of crashing.
+const $ = (sel) => document.querySelector(sel) || document.createElement('div');
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -1296,7 +1298,23 @@ async function requestPersistence() {
 // re-check reminders and refresh "today" when the app comes back into view
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
 
-init().catch(err => {
+// Page and script must be the same version; if not, drop caches and reload once.
+async function ensureFreshPage() {
+  const meta = document.querySelector('meta[name="dp-version"]');
+  if (meta && meta.content === APP_VERSION) return false;
+  let tried = false;
+  try { tried = sessionStorage.getItem('dp-refreshed') === APP_VERSION; sessionStorage.setItem('dp-refreshed', APP_VERSION); } catch (_) {}
+  if (tried) return false;
+  try {
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    const regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+    for (const r of regs) await r.unregister();
+  } catch (_) {}
+  location.reload();
+  return true;
+}
+
+ensureFreshPage().then(stop => stop || init()).catch(err => {
   document.body.insertAdjacentHTML('afterbegin', `<div class="banner">Daily Plate could not start: ${esc(err.message)}</div>`);
   console.error(err);
 });

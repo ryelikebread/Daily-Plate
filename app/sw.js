@@ -1,10 +1,13 @@
 // Service worker: caches the app's own files so it opens offline,
 // and opens the diary when a reminder notification is clicked.
-const CACHE = 'daily-plate-v13';
+const CACHE = 'daily-plate-v14';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'db.js', 'lookup.js', 'sync.js', 'scanner.js', 'vendor/zxing.min.js', 'nutrients.js', 'nutrient-info.js', 'report.js', 'starter-foods.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // Precache every file together, bypassing the browser's HTTP cache, so a new
+// version is never a mix of old and new files. If any file fails, the install fails
+// and the old version keeps running.
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f => c.add(new Request(f, { cache: 'reload' }))))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -14,10 +17,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // online lookups go straight to the network
-  // network first so updates show up, cache as offline fallback
+  // network first (always revalidated, never the browser's stale HTTP cache) so updates
+  // show up at once; the cache is the offline fallback
   e.respondWith(
-    fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
+    fetch(e.request, { cache: 'no-cache' }).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })
+      .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match('index.html')))
   );
 });
 

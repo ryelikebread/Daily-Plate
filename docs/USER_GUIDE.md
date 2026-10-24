@@ -280,3 +280,12 @@ node tests/smoke.test.js
 `node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
+
+
+## If the app won't start after an update ("Daily Plate could not start")
+
+This means your phone mixed old and new files. Your food log is safe: it is stored separately from the app's files and updating never erases it.
+1. Fully close Daily Plate (swipe it away in the app switcher) and open it again, twice.
+2. If it still fails, wait 10 minutes and try again.
+3. Still failing: in Safari open the site (ryelikebread.github.io/Daily-Plate) in a normal tab and reload it. If you use the Home Screen icon, that should be enough.
+4. Last resort: iPhone Settings > Apps > Safari > Advanced > Website Data, remove only the Daily Plate entry. This DOES delete the data stored on the phone, so only do it if sync is on and has finished (or you made a backup in Settings), then turn sync on again and it pulls everything back.
