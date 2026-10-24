@@ -91,7 +91,7 @@ function serve() {
       const code = r.request().url().match(/product\/(\d+)\.json/)[1];
       lookups.push(code);
       const p = PRODUCTS[code];
-      return r.fulfill({ json: p ? { status: 1, product: { code, ...p } } : { status: 0 } });
+      return p ? r.fulfill({ json: { status: 1, product: { code, ...p } } }) : r.fulfill({ status: 404, json: { code, status: 0, status_verbose: 'product not found' } });
     });
     if (initScript) await ctx.addInitScript(initScript);
     const page = await ctx.newPage();

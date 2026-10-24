@@ -84,8 +84,9 @@ const Lookup = (() => {
 
   async function offBarcode(code) {
     const r = await fetch(`${OFF_BASE}/api/v2/product/${encodeURIComponent(code)}.json`);
+    if (r.status === 404) return null; // OFF answers 404 for barcodes it doesn't know
     if (!r.ok) throw new Error('Open Food Facts: HTTP ' + r.status);
-    const j = await r.json();
+    const j = await r.json().catch(() => ({}));
     return j.status === 1 ? offToFood({ code, ...j.product }) : null;
   }
 
