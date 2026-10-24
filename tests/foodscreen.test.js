@@ -117,6 +117,8 @@ function serve() {
   await page.waitForSelector('#issue-dialog[open]');
   check((await page.getAttribute('#issue-source', 'href')) === 'https://fdc.nal.usda.gov/food-details/123456/nutrients', 'issue dialog links to the USDA entry');
   await page.fill('#issue-note', 'sodium seems high');
+  const gh = await page.getAttribute('#issue-github', 'href');
+  check(gh.startsWith('https://github.com/ryelikebread/Daily-Plate/issues/new?labels=food-data') && decodeURIComponent(gh).includes('sodium seems high'), 'GitHub list link is pre-filled with the note');
   await page.click('#issue-dialog button[value="ok"]');
   await page.waitForTimeout(200);
   check((await page.textContent('#amount-flag')).includes('sodium seems high'), 'issue flag shows on the food');

@@ -133,7 +133,7 @@ Picking a food opens its full screen:
 - **⋯ menu**:
   - **Add to / Remove from favorites**
   - **Remove from recents**: hides it from the recent list (it stays in your foods and comes back if you log it again).
-  - **Report an issue**: write what looks wrong. The food gets a ⚠ flag with your note on this device. From there you can open the source entry (Open Food Facts lets anyone correct a product; USDA shows its official record) or **Copy details** to send to someone.
+  - **Report an issue**: write what looks wrong. The food gets a ⚠ flag with your note on this device. From there you can open the source entry (Open Food Facts lets anyone correct a product; USDA shows its official record) or **Copy details** to send to someone. **Add to GitHub list** opens a pre-filled issue (labelled `food-data`) in the Daily Plate repo at github.com/ryelikebread/Daily-Plate/issues; sign in to GitHub and tap Submit there. The list of reports is the repo's Issues page. No password or token is stored in the app for this.
   - **Edit a copy**: makes your own editable copy with every nutrient filled in. The original stays as it was.
 
 The same full report is on the **Diary** tab under *All nutrients for this day*, for the whole day's totals.

@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -159,6 +159,8 @@ function bindUI() {
   $$('#food-menu [data-act]').forEach(b => b.addEventListener('click', () => foodMenuAction(b.dataset.act)));
   $('#amount-dialog').addEventListener('click', (e) => { if (!e.target.closest('#food-menu, #food-menu-btn')) $('#food-menu').hidden = true; });
   $('#issue-dialog').addEventListener('close', onIssueClose);
+  $('#issue-note').addEventListener('input', updateIssueLink);
+  $('#issue-github').addEventListener('click', async () => { const f = await ensureSavedFood(); f.issue = { note: $('#issue-note').value.trim(), at: Date.now() }; await DB.save('foods', f); renderFoodHeader(); });
   $('#issue-copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(issueDetails()); toast('Details copied.'); }
     catch (_) { toast('Could not copy on this device.'); }
@@ -580,7 +582,17 @@ function openIssueDialog() {
     $('#issue-source').textContent = f.source === 'off' ? 'Fix it on Open Food Facts' : 'View it on USDA FoodData Central';
   }
   $('#issue-clear').hidden = !f.issue;
+  updateIssueLink();
   $('#issue-dialog').showModal();
+}
+
+// Pre-filled "new issue" page in the project's GitHub repo (no token needed).
+const ISSUE_REPO = 'https://github.com/ryelikebread/Daily-Plate/issues/new';
+function updateIssueLink() {
+  const f = state.foods.get(state.pendingFood.id) || state.pendingFood;
+  const title = `Food data: ${f.name}${f.brand ? ' (' + f.brand + ')' : ''}`.slice(0, 120);
+  const body = issueDetails().slice(0, 4000);
+  $('#issue-github').href = `${ISSUE_REPO}?labels=food-data&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
 
 function issueDetails() {

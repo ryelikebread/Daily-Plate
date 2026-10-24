@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.6.0 (2026-10-24): Report an issue gains "Add to GitHub list", a pre-filled new-issue link to ryelikebread/Daily-Plate (label food-data, created once on the repo). No token used; GitHub's own sign-in does the filing.
+
 1.5.0 (2026-10-24): full food screen (energy ring, targets, scores, 62 nutrients in groups), tap-to-learn nutrient explanations, favorites, remove from recents, report-an-issue flags, Edit a copy.
 1.4.0 (2026-10-24): Brands / Restaurants / Basic search filters, restaurant recognition, USDA serving sizes, paging, offline search cache; Add food and Scan barcode buttons on the Diary screen.
 1.3.0 (2026-10-24): camera and photo barcode scanning (works on iPhone).
