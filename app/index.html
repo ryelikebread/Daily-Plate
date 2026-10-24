@@ -43,6 +43,10 @@
       <button id="today-btn" class="small ghost">Today</button>
     </div>
 
+    <div class="quick-actions">
+      <button id="qa-add" class="primary">+ Add food</button>
+      <button id="qa-scan" class="primary">📷 Scan barcode</button>
+    </div>
     <div class="card summary" id="day-summary"></div>
     <div id="meals"></div>
 
@@ -181,8 +185,14 @@
   <form method="dialog" class="dialog-body" id="add-form">
     <h2>Add to <span id="add-meal-name"></span></h2>
     <div class="row">
-      <input type="search" id="add-search" placeholder="Search foods (e.g. oats, banana)" autocomplete="off">
+      <input type="search" id="add-search" placeholder="Food, brand or restaurant (e.g. oats, Chobani, Big Mac)" autocomplete="off">
       <button type="button" id="add-online" class="small">Search online</button>
+    </div>
+    <div class="chips" role="radiogroup" aria-label="Search in">
+      <button type="button" class="chip active" data-filter="all">All</button>
+      <button type="button" class="chip" data-filter="brands">Brands</button>
+      <button type="button" class="chip" data-filter="restaurants">Restaurants</button>
+      <button type="button" class="chip" data-filter="basic">Basic foods</button>
     </div>
     <div class="row">
       <input type="text" id="add-barcode" placeholder="Barcode" inputmode="numeric" style="width:10em">
@@ -192,6 +202,8 @@
     </div>
     <div id="add-status" class="hint"></div>
     <div id="add-results" class="results"></div>
+    <div class="row"><button type="button" id="add-more" class="small ghost" hidden>More results</button></div>
+    <p class="hint attribution" id="add-attribution" hidden>Online results: USDA FoodData Central (public domain) and Open Food Facts (Open Database Licence, openfoodfacts.org). Check the label when it matters.</p>
     <div class="row end"><button value="cancel">Close</button></div>
   </form>
 </dialog>

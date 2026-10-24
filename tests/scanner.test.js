@@ -116,8 +116,7 @@ function serve() {
 
   // 2. UPC-A barcode: reader returns 12 digits, lookup falls back to 13-digit form
   page = await open(FAKE_CAMERA('0036000291452'));
-  await page.click('[data-add="Lunch"]');
-  await page.click('#add-scan');
+  await page.click('#qa-scan'); // the Scan barcode button on the Diary screen
   await page.waitForSelector('#amount-dialog[open]', { timeout: 15000 }).catch(() => {});
   check((await page.textContent('#amount-title')) === 'Scanned Tissues Snack', 'UPC-A code is found via its EAN-13 form (lookups: ' + lookups.slice(-2).join(', ') + ')');
 

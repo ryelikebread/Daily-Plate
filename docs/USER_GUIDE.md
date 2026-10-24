@@ -61,7 +61,8 @@ This works for logging, but offline caching and notifications are disabled when 
 
 - **Date bar**: arrows move a day back/forward, **Today** jumps to today, or pick any date.
 - **Summary card**: calories eaten, goal, and remaining, plus progress bars for protein, carbs, fat, fiber and sodium. Bars turn red when you go over a *limit* (calories, sodium, sugar, saturated fat, cholesterol).
-- **Meals**: Breakfast, Lunch, Dinner, Snacks. Press **+ Add** on a meal.
+- **+ Add food / 📷 Scan barcode** (big buttons under the date): the quickest way in. They pick the meal that fits the time of day; you can change the meal before saving.
+- **Meals**: Breakfast, Lunch, Dinner, Snacks. Press **+ Add** on a meal to add straight to it.
   - Tap an entry to change its amount or move it to another meal.
   - Press **✕** to delete it. An **Undo** button appears for a few seconds.
 - **Day notes**: free text about the day.
@@ -72,18 +73,37 @@ This works for logging, but offline caching and notifications are disabled when 
 
 ### Adding food
 
-In the Add dialog:
+In the add window (opened by **+ Add food** or a meal's **+ Add**):
 
 | Method | How |
 |---|---|
 | Your foods | Start typing. Searches foods you've saved, recipes, and the built-in basics. With an empty box, it shows your most-used foods from the last 30 days. |
-| Online search | Type a name and press **Enter** or **Search online**. Searches Open Food Facts and USDA FoodData Central. Any food you pick is saved to your foods so it works offline next time. |
+| Online search | Type a food, brand or restaurant item and press **Enter** or **Search online**. Pick a filter first if you like (see *Brands and restaurants* below). Any food you pick is saved to your foods so it works offline next time. |
 | Barcode | Tap **📷 Scan** and point the camera at the barcode, or type the number and press **Look up**. See *Scanning barcodes* below. |
 | Quick add | Just calories (and optionally protein/carbs/fat) when you don't know the exact food. |
 
+### Brands and restaurants
+
+Above the results are four filters:
+
+| Filter | Searches | Good for |
+|---|---|---|
+| **All** | Everything below | When you're not sure |
+| **Brands** | USDA Branded Foods (several hundred thousand U.S. products) + Open Food Facts (millions of products worldwide) | Packaged food: "Chobani vanilla", "Clif bar" |
+| **Restaurants** | USDA's fast-food and restaurant groups, USDA "from fast food / restaurant" foods, and products from ~80 known chains | Chain menu items: "Big Mac", "Taco Bell burrito" |
+| **Basic foods** | USDA generic foods | Whole foods and home cooking: "chicken thigh", "rice" |
+
+- Restaurant items show an orange **restaurant** tag, with the chain as the brand. Many come with real serving sizes like "1 item" or "1 sandwich".
+- **More results** loads the next page.
+- Every search is saved on your device for two weeks, so repeating a search is instant and works offline.
+
+**Restaurant coverage is the weak spot.** Free, open sources cover the biggest U.S. chains for their classic items (often older menu versions), but not every chain or new item. When something's missing:
+1. Try the chain name plus the item, or the **All** filter. "Cheeseburger, from fast food" style items are good stand-ins.
+2. Or make it a custom food (Foods → + Custom food) from the nutrition info the chain publishes on its website or in-store. You only do it once; after that it's in your foods.
+
 ### Scanning barcodes
 
-1. In the Add dialog, tap **📷 Scan**. Allow camera access the first time.
+1. On the Diary tab tap **📷 Scan barcode** (or **📷 Scan** inside any meal's + Add window). Allow camera access the first time.
 2. Fit the barcode inside the white box, about a hand-width away, in good light. It reads it by itself (the phone buzzes on Android) and looks the product up.
 3. If the product is found, choose the amount and save. If not, tap **Create custom food with barcode…**: the barcode is filled in, so next time a scan finds your own food instantly.
 
@@ -205,7 +225,7 @@ The Settings page shows whether storage is "persistent" and when you last backed
 
 | Problem | Fix |
 |---|---|
-| Online search says HTTP 429 | USDA's DEMO_KEY hit its limit. Add your own key in Settings. |
+| Online search says HTTP 429 | USDA's DEMO_KEY hit its limit (it allows only about 30 searches an hour, 50 a day). Get your own free key at api.data.gov/signup (1,000 searches an hour) and paste it in Settings. |
 | Online search fails entirely | You're offline, or the network blocks those sites. Local foods still work. |
 | No notifications | Allow notifications for the site in browser settings, keep the app open, and rely on the calendar event. |
 | Data missing | Check you're on the same device, browser and address (e.g. `localhost:8080`, not `:8000`). Restore your latest backup. |
@@ -223,6 +243,6 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-`node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
+`node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.

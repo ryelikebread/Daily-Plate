@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -139,7 +139,12 @@ function bindUI() {
   // add dialog
   $('#add-search').addEventListener('input', renderLocalResults);
   $('#add-search').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); onlineSearch(); } });
-  $('#add-online').addEventListener('click', onlineSearch);
+  $('#add-search').addEventListener('input', () => { $('#add-more').hidden = true; $('#add-attribution').hidden = true; });
+  $('#qa-add').addEventListener('click', () => openAddDialog(mealForNow()));
+  $('#qa-scan').addEventListener('click', () => { openAddDialog(mealForNow()); scanBarcode(); });
+  $('#add-online').addEventListener('click', () => onlineSearch());
+  $('#add-more').addEventListener('click', () => onlineSearch(true));
+  $$('#add-dialog .chip').forEach(c => c.addEventListener('click', () => setSearchFilter(c.dataset.filter)));
   $('#add-barcode-go').addEventListener('click', () => barcodeLookup($('#add-barcode').value.trim()));
   $('#add-quick').addEventListener('click', () => { $('#add-dialog').close(); openQuickAdd(); });
   $('#add-scan').addEventListener('click', scanBarcode);
@@ -324,12 +329,20 @@ async function copyYesterday() {
 }
 
 // ---------- add food ----------
+// Meal that fits the current time of day (you can change it before saving).
+function mealForNow() {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  return h < 10.5 ? 'Breakfast' : h < 15 ? 'Lunch' : h >= 17 && h < 21 ? 'Dinner' : 'Snacks';
+}
+
 function openAddDialog(meal) {
   state.addMeal = meal;
   $('#add-meal-name').textContent = meal;
   $('#add-search').value = '';
   $('#add-barcode').value = '';
   $('#add-status').textContent = '';
+  $('#add-more').hidden = true;
+  $('#add-attribution').hidden = true;
   renderLocalResults();
   $('#add-dialog').showModal();
   $('#add-search').focus();
@@ -366,7 +379,7 @@ function renderResults(container, list, onPick) {
   const el = $(container);
   el.innerHTML = list.map((f, i) => `<button type="button" class="result" data-i="${i}">
       <span><strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''}
-      <span class="tag tag-${f.source}">${sourceLabel(f.source)}</span></span>
+      ${f.kind === 'restaurant' ? '<span class="tag tag-restaurant">restaurant</span>' : ''}<span class="tag tag-${f.source}">${sourceLabel(f.source)}</span></span>
       <span class="hint">${fmt(f.per100.kcal, 'kcal')} kcal / 100 g · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</span>
     </button>`).join('');
   el.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => onPick(list[+b.dataset.i])));
@@ -376,20 +389,36 @@ function sourceLabel(s) {
   return { custom: 'mine', recipe: 'recipe', starter: 'basic', off: 'Open Food Facts', usda: 'USDA', quick: 'quick' }[s] || s;
 }
 
-async function onlineSearch() {
+// Online search with a Brands / Restaurants / Basic filter and paging.
+const search = { q: '', filter: 'all', page: 1, results: [] };
+
+async function onlineSearch(nextPage = false) {
   const q = $('#add-search').value.trim();
-  if (!q) return;
-  const s = state.settings;
-  const jobs = [];
-  if (s.offEnabled) jobs.push(Lookup.offSearch(q));
-  if (s.usdaEnabled) jobs.push(Lookup.usdaSearch(q, s.usdaKey));
-  if (!jobs.length) { $('#add-status').textContent = 'Online lookup is off (Settings).'; return; }
-  $('#add-status').textContent = 'Searching online…';
-  const results = await Promise.allSettled(jobs);
-  const foods = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
-  const errors = results.filter(r => r.status === 'rejected').map(r => r.reason.message);
-  $('#add-status').textContent = `${foods.length} online result(s).` + (errors.length ? ' ' + errors.join('; ') : '');
-  renderResults('#add-results', foods, f => pickFood(f));
+  if (!q) { $('#add-status').textContent = 'Type a food, brand or restaurant first.'; return; }
+  if (!nextPage) Object.assign(search, { q, page: 1, results: [] });
+  else search.page += 1;
+  $('#add-status').textContent = nextPage ? 'Loading more…' : `Searching ${filterLabel(search.filter)} online…`;
+  $('#add-more').hidden = true;
+  const res = await Lookup.search(search.q, { filter: search.filter, page: search.page, settings: state.settings });
+  const seen = new Set(search.results.map(f => f.id));
+  search.results.push(...res.results.filter(f => !seen.has(f.id)));
+  let msg = `${search.results.length} online result(s)` + (res.fromCache ? ' (saved from an earlier search)' : '') + '.';
+  if (!search.results.length && search.filter === 'restaurants') msg += ' Restaurant coverage in open data is limited: try the chain name plus the item (e.g. "taco bell burrito"), the All filter, or add it as a custom food from the chain\'s nutrition info.';
+  if (res.errors.length) msg += ' ' + res.errors.join('; ');
+  $('#add-status').textContent = msg;
+  $('#add-more').hidden = !res.more;
+  $('#add-attribution').hidden = !search.results.length;
+  renderResults('#add-results', search.results, f => pickFood(f));
+}
+
+function filterLabel(f) {
+  return { all: 'all foods', brands: 'brands', restaurants: 'restaurants', basic: 'basic foods' }[f] || f;
+}
+
+function setSearchFilter(f) {
+  search.filter = f;
+  $$('#add-dialog .chip').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
+  if ($('#add-search').value.trim()) onlineSearch();
 }
 
 async function barcodeLookup(code) {
@@ -401,7 +430,7 @@ async function barcodeLookup(code) {
   $('#add-status').textContent = 'Looking up barcode ' + code + '…';
   try {
     for (const c of forms) {
-      const f = await Lookup.offBarcode(c);
+      const f = await Lookup.barcode(c);
       if (f) return pickFood(f);
     }
     $('#add-status').textContent = 'Barcode not found. You can create it as a custom food.';

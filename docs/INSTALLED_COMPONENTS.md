@@ -20,7 +20,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/vendor/zxing.min.js` | Bundled barcode-reading library (see Third-party code). Loaded only when you scan. |
 | `app/vendor/zxing-LICENSE.txt` | Its licence text. |
 | `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
-| `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central. Converts results to the app's per-100 g format. |
+| `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation). Brands / Restaurants / Basic filters, restaurant-chain recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format. |
 | `app/nutrients.js` | The 14 tracked nutrients, their units and default goals, and the four meals. |
 | `app/starter-foods.js` | 24 common whole foods built in so the app is useful offline on day one. |
 | `app/sw.js` | Service worker: caches the app files so it opens offline; opens the diary when a reminder notification is tapped. |
@@ -29,6 +29,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/apple-touch-icon.png` | 180×180 Home Screen icon for iPhone/iPad. |
 | `app/icon-192.png`, `app/icon-512.png` | Install icons for Android/Chrome. |
 | `tests/smoke.test.js` | Automated end-to-end test (developer use only). |
+| `tests/database.test.js` | Automated test of brand/restaurant search, filters, paging, serving sizes and offline cache (developer use only). |
 | `tests/scanner.test.js` | Automated scanner test with generated barcodes and a fake camera (developer use only). |
 | `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
 | `docs/USER_GUIDE.md` | How to run and use the app. |
@@ -40,8 +41,8 @@ When you open the app, the browser creates:
 
 | Item | Name | Contents |
 |---|---|---|
-| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
-| Cache Storage | `daily-plate-v4` | Copies of the app's own files for offline use. No personal data. |
+| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `lookupCache` (online search results and barcode lookups, kept 14 days for speed and offline use; safe to clear, not backed up or synced), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
+| Cache Storage | `daily-plate-v5` | Copies of the app's own files for offline use. No personal data. |
 | Service worker | `sw.js` | Registered for the site's address. Only when served over http(s). |
 | Permissions (optional) | Notifications, Camera | Asked only when you save a reminder / press Scan. |
 | Persistent storage request | — | The app asks the browser not to auto-clear its data. The browser decides. |
@@ -53,11 +54,23 @@ To remove everything: browser settings → site data for the app's address → C
 | Service | Used for | Sent | Licence of data |
 |---|---|---|---|
 | Open Food Facts (`world.openfoodfacts.org`) | Packaged foods, barcode lookup | Your search words or the barcode | Open Database Licence (ODbL) |
-| USDA FoodData Central (`api.nal.usda.gov`) | Generic and branded foods | Your search words and the API key | U.S. public domain |
+| USDA FoodData Central (`api.nal.usda.gov`) | Generic foods, U.S. branded products (Branded Foods), fast-food/restaurant items (SR Legacy groups and Survey/FNDDS) | Your search words and the API key | U.S. public domain (CC0) |
 
 | GitHub Gist API (`api.github.com`, `gist.githubusercontent.com`) | Sync between devices (only if you turn it on) | Your data **encrypted on the device** (AES-256-GCM, key from your passphrase via PBKDF2-SHA-256, 250,000 rounds) and your GitHub token | Your own private data |
 
 Food lookups can be turned off in Settings; sync is off until you turn it on. Nothing else is contacted.
+
+## Food data coverage
+
+| Need | Source used | Coverage |
+|---|---|---|
+| Packaged / brand-name foods | USDA Branded Foods + Open Food Facts | Strong: hundreds of thousands of U.S. products plus millions worldwide; barcodes via Open Food Facts |
+| Restaurant chain items | USDA SR Legacy "Fast Foods" / "Restaurant Foods", USDA FNDDS "from fast food/restaurant", Open Food Facts entries from known chains | Partial: classic items from the biggest U.S. chains; newer and regional items often missing |
+| Generic foods | USDA Foundation, SR Legacy, FNDDS + 24 built-in basics | Strong |
+
+Sources considered and **not** used: commercial food-tracker apps (excluded by the clean-room rule; no scraping), Nutritionix (commercial licence), FatSecret Platform (free tier exists but must be called through a server you run, with your own API keys; see the option offered in the project thread), scraping chain websites (terms of use).
+
+The chain list in `lookup.js` holds only restaurant names, used to label results.
 
 ## Third-party code
 
@@ -100,6 +113,7 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.4.0 (2026-10-24): Brands / Restaurants / Basic search filters, restaurant recognition, USDA serving sizes, paging, offline search cache; Add food and Scan barcode buttons on the Diary screen.
 1.3.0 (2026-10-24): camera and photo barcode scanning (works on iPhone).
 1.2.0 (2026-10-24): encrypted sync between devices via a secret GitHub Gist.
 1.1.0 (2026-10-24): iPhone Home Screen support, fixed reminder banner always showing.
