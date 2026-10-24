@@ -167,3 +167,10 @@ button.wide { width: 100%; padding: 12px; font-size: 16px; font-weight: 600; }
 .disclaimer { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 12px; }
 .fav-mark { color: #e3a21a; }
 .goal-group summary { font-weight: 600; margin: 8px 0; }
+details.group { border-top: 1px solid var(--line); }
+details.group > summary.entry { border-top: 0; cursor: pointer; list-style: none; }
+details.group > summary::-webkit-details-marker { display: none; }
+.group-parts { margin-left: 12px; padding-left: 10px; border-left: 3px solid var(--line); }
+.entry.part { border-top: 1px dashed var(--line); }
+.frow.check { display: flex; align-items: center; gap: 10px; }
+.frow.check input { width: auto; }

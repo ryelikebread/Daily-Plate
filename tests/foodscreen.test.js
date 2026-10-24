@@ -142,6 +142,58 @@ function serve() {
   await page.click('#add-dialog button[value="cancel"], #add-dialog [data-close]').catch(() => page.keyboard.press('Escape'));
   await page.waitForTimeout(200);
 
+  // Part-of-same-item checkbox groups foods into one expandable diary line
+  await page.click('#amount-more'.replace('#amount-more','#add-dialog button[value="cancel"]')).catch(() => {});
+  await page.click('#qa-add');
+  await page.waitForTimeout(300);
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  check(!(await page.isVisible('#amount-same')), 'no "same item" box on the first food');
+  await page.click('#amount-more');
+  await page.waitForSelector('#add-dialog[open]');
+  await page.click('#add-results .result');
+  await page.waitForSelector('#amount-dialog[open]');
+  check(await page.isVisible('#amount-same') && !(await page.isChecked('#amount-same')), '"same item" box shows on the next food, unchecked by default');
+  await page.check('#amount-same');
+  await page.click('#amount-ok');
+  await page.waitForTimeout(300);
+  check(await page.locator('#meals details.group').count() === 1, 'checked food joins the previous one as one grouped diary line');
+  const gt = await page.textContent('#meals details.group > summary');
+  check(/\+ 1 more/.test(gt) && /2 parts/.test(gt), 'group line shows part count: ' + gt.replace(/\s+/g, ' '));
+  await page.click('#meals details.group > summary .entry-main');
+  await page.waitForTimeout(200);
+  check(await page.locator('#meals details.group .group-parts .entry').count() === 2, 'group expands to show its parts');
+  // delete whole group, then undo
+  await page.click('#meals details.group > summary [data-delgroup]');
+  await page.waitForTimeout(200);
+  check(await page.locator('#meals details.group').count() === 0, 'deleting the item removes all its parts');
+  await page.click('.toast button, #toast button').catch(() => {});
+  await page.waitForTimeout(300);
+  check(await page.locator('#meals details.group').count() === 1, 'Undo restores the whole group');
+  await page.click('#meals details.group > summary .entry-main');
+  await page.click('#meals details.group [data-ungroup]');
+  await page.waitForTimeout(300);
+  check(await page.locator('#meals details.group').count() === 0, 'Ungroup separates the parts');
+
+  // copy yesterday keeps a group together (regroup, then copy it to the next day)
+  await page.click('#meals [data-del]').catch(() => {});
+  await page.evaluate(async () => {
+    const all = await DB.all('entries');
+    const d = all[0].date; const gid = 'g-test';
+    await DB.saveMany('entries', all.slice(0, 2).map(e => ({ ...e, groupId: gid })));
+  });
+  const today = await page.inputValue('#diary-date');
+  const next = new Date(today + 'T12:00:00'); next.setDate(next.getDate() + 1);
+  await page.fill('#diary-date', next.toISOString().slice(0, 10));
+  await page.dispatchEvent('#diary-date', 'change');
+  await page.waitForTimeout(300);
+  await page.click('#copy-yesterday');
+  await page.waitForTimeout(400);
+  check(await page.locator('#meals details.group').count() === 1, 'Copy yesterday keeps grouped items grouped');
+  await page.fill('#diary-date', today);
+  await page.dispatchEvent('#diary-date', 'change');
+  await page.waitForTimeout(300);
+
   // favorites first; remove from recents
   await page.click('#qa-add');
   await page.waitForTimeout(300);

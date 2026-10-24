@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -155,6 +155,11 @@ function bindUI() {
   $('#amount-unit').addEventListener('change', renderAmountPreview);
   $('#amount-dialog').addEventListener('close', onAmountClose);
   $('#fav-toggle').addEventListener('click', toggleFavorite);
+  $('#amount-same').addEventListener('change', () => {
+    const on = $('#amount-same').checked && state.after;
+    if (on) $('#amount-meal').value = state.after.meal;
+    $('#amount-meal').disabled = !!on;
+  });
   $('#food-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); $('#food-menu').hidden = !$('#food-menu').hidden; });
   $$('#food-menu [data-act]').forEach(b => b.addEventListener('click', () => foodMenuAction(b.dataset.act)));
   $('#amount-dialog').addEventListener('click', (e) => { if (!e.target.closest('#food-menu, #food-menu-btn')) $('#food-menu').hidden = true; });
@@ -271,21 +276,18 @@ async function renderDiary() {
     return `<div class="card meal">
       <div class="meal-head"><h3>${meal}</h3><span class="hint">${fmt(mt.kcal || 0, 'kcal')} kcal</span>
         <button class="small" data-add="${meal}">+ Add</button></div>
-      ${items.map(e => {
-        const n = entryNutrients(e);
-        return `<div class="entry" data-id="${e.id}">
-          <div class="entry-main" data-edit="${e.id}">
-            <div>${esc(e.food.name)}${e.food.brand ? ` <span class="hint">· ${esc(e.food.brand)}</span>` : ''}</div>
-            <div class="hint">${esc(amountLabel(e))} · P ${fmt(n.protein)} · C ${fmt(n.carbs)} · F ${fmt(n.fat)}</div>
-          </div>
-          <div class="entry-kcal">${fmt(n.kcal, 'kcal')}</div>
-          <button class="icon" data-del="${e.id}" aria-label="Delete">✕</button>
-        </div>`;
-      }).join('') || '<div class="hint empty">Nothing logged yet.</div>'}
+      ${groupItems(items).map(g => g.length > 1 ? groupHtml(g) : entryHtml(g[0])).join('') || '<div class="hint empty">Nothing logged yet.</div>'}
     </div>`;
   }).join('');
   $$('#meals [data-add]').forEach(b => b.addEventListener('click', () => openAddDialog(b.dataset.add)));
   $$('#meals [data-del]').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.del)));
+  $$('#meals [data-delgroup]').forEach(b => b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); deleteGroup(b.dataset.delgroup); }));
+  $$('#meals [data-ungroup]').forEach(b => b.addEventListener('click', () => ungroup(b.dataset.ungroup)));
+  $$('#meals details.group').forEach(d => {
+    const el = d.querySelector('.group-report');
+    const draw = () => { if (d.open && !el.dataset.done) { el.dataset.done = 1; const t = totalsOf(groupEntries.get(d.dataset.gid) || []); Report.render(el, t, { goals: state.goals, sections: ['energy', 'macros'] }); } };
+    d.addEventListener('toggle', draw);
+  });
   $$('#meals [data-edit]').forEach(b => b.addEventListener('click', () => editEntry(b.dataset.edit)));
 
   // notes etc
@@ -297,6 +299,58 @@ async function renderDiary() {
   // nutrient table
   Report.render($('#day-report'), entries.length ? totals : {}, { goals: state.goals });
   $('#day-report').insertAdjacentHTML('beforeend', '<p class="hint">Day totals add up what each food lists. Foods that don\'t list a nutrient count as zero for it, so vitamin and mineral totals are a minimum.</p>');
+}
+
+// ----- grouped items: foods marked "part of the same item" share a groupId -----
+const groupEntries = new Map();
+function groupItems(items) {
+  const out = []; const byGroup = new Map();
+  for (const e of items) {
+    if (!e.groupId) { out.push([e]); continue; }
+    if (!byGroup.has(e.groupId)) { const g = []; byGroup.set(e.groupId, g); out.push(g); }
+    byGroup.get(e.groupId).push(e);
+  }
+  return out;
+}
+
+function entryHtml(e, part) {
+  const n = entryNutrients(e);
+  return `<div class="entry${part ? ' part' : ''}" data-id="${e.id}">
+    <div class="entry-main" data-edit="${e.id}">
+      <div>${esc(e.food.name)}${e.food.brand ? ` <span class="hint">· ${esc(e.food.brand)}</span>` : ''}</div>
+      <div class="hint">${esc(amountLabel(e))} · P ${fmt(n.protein)} · C ${fmt(n.carbs)} · F ${fmt(n.fat)}</div>
+    </div>
+    <div class="entry-kcal">${fmt(n.kcal, 'kcal')}</div>
+    <button class="icon" data-del="${e.id}" aria-label="Delete">✕</button>
+  </div>`;
+}
+
+function groupHtml(g) {
+  groupEntries.set(g[0].groupId, g);
+  const t = totalsOf(g); const gid = g[0].groupId;
+  return `<details class="group" data-gid="${gid}">
+    <summary class="entry"><div class="entry-main"><div>${esc(g[0].food.name)} <span class="hint">+ ${g.length - 1} more</span></div>
+      <div class="hint">${g.length} parts · P ${fmt(t.protein)} · C ${fmt(t.carbs)} · F ${fmt(t.fat)}</div></div>
+      <div class="entry-kcal">${fmt(t.kcal, 'kcal')}</div>
+      <button type="button" class="icon" data-delgroup="${gid}" aria-label="Delete whole item">✕</button></summary>
+    <div class="group-parts">${g.map(e => entryHtml(e, true)).join('')}
+      <div class="group-report"></div>
+      <div class="row end"><button type="button" class="small ghost" data-ungroup="${gid}">Ungroup parts</button></div></div>
+  </details>`;
+}
+
+async function deleteGroup(gid) {
+  const parts = (await entriesFor(state.date)).filter(e => e.groupId === gid);
+  for (const e of parts) await DB.remove('entries', e.id);
+  await renderDiary();
+  toast(`Removed ${parts[0] ? parts[0].food.name : 'item'} and ${Math.max(0, parts.length - 1)} part(s)`, 'Undo', async () => { await DB.saveMany('entries', parts); renderDiary(); });
+}
+
+async function ungroup(gid) {
+  const parts = (await entriesFor(state.date)).filter(e => e.groupId === gid).map(e => { const c = { ...e }; delete c.groupId; return c; });
+  await DB.saveMany('entries', parts);
+  renderDiary();
+  toast('Parts are now separate entries.');
 }
 
 function progressBar(n, v) {
@@ -333,7 +387,12 @@ async function copyYesterday() {
   const prev = await entriesFor(shiftDate(state.date, -1));
   if (!prev.length) return toast('Nothing logged the day before.');
   const now = Date.now();
-  await DB.saveMany('entries', prev.map((e, i) => ({ ...e, id: uid(), date: state.date, createdAt: now + i })));
+  const gmap = new Map(); // keep grouped items grouped, with fresh group ids
+  await DB.saveMany('entries', prev.map((e, i) => {
+    const c = { ...e, id: uid(), date: state.date, createdAt: now + i };
+    if (e.groupId) { if (!gmap.has(e.groupId)) gmap.set(e.groupId, uid()); c.groupId = gmap.get(e.groupId); }
+    return c;
+  }));
   toast(`Copied ${prev.length} item(s).`);
   renderDiary();
 }
@@ -345,8 +404,9 @@ function mealForNow() {
   return h < 10.5 ? 'Breakfast' : h < 15 ? 'Lunch' : h >= 17 && h < 21 ? 'Dinner' : 'Snacks';
 }
 
-function openAddDialog(meal) {
+function openAddDialog(meal, after) {
   state.addMeal = meal;
+  state.after = after || null; // the food just saved with "Save & add another"
   $('#add-meal-name').textContent = meal;
   $('#add-search').value = '';
   $('#add-barcode').value = '';
@@ -508,6 +568,11 @@ function openAmountDialog(food, entry) {
     $('#amount-meal').value = state.addMeal;
   }
   $('#amount-more').hidden = !!entry;
+  const after = !entry && state.after;
+  $('#amount-same-row').hidden = !after;
+  $('#amount-same').checked = false; // default: a separate entry
+  $('#amount-meal').disabled = false;
+  if (after) $('#amount-same-text').textContent = `Part of the same item as ${after.name}`;
   renderAmountPreview();
   $('#amount-dialog').showModal();
   $('#amount-dialog .sheet-body').scrollTop = 0;
@@ -648,9 +713,19 @@ async function onAmountClose() {
     qty, unit, grams,
     updatedAt: Date.now(),
   };
+  if (!state.editingEntry && state.after && $('#amount-same').checked) {
+    // join the previous food's group (the previous entry becomes the group's first part)
+    const prev = await DB.get('entries', state.after.entryId);
+    if (prev) {
+      if (!prev.groupId) { prev.groupId = uid(); await DB.save('entries', prev); }
+      entry.groupId = prev.groupId;
+      entry.meal = prev.meal;
+    }
+  }
   await DB.save('entries', entry);
   renderDiary();
-  if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal); }
+  if (rv === 'more') { toast(`Added ${food.name}. Pick another.`); openAddDialog(entry.meal, { entryId: entry.id, name: food.name, meal: entry.meal }); }
+  else state.after = null;
 }
 
 async function editEntry(id) {
@@ -1074,8 +1149,8 @@ async function exportJson() {
 
 async function exportEntriesCsv() {
   const entries = (await DB.all('entries')).sort((a, b) => a.date.localeCompare(b.date) || MEALS.indexOf(a.meal) - MEALS.indexOf(b.meal));
-  const head = ['date', 'meal', 'food', 'brand', 'source', 'amount', 'unit', 'grams', ...NUTRIENTS.map(n => `${n.key}_${n.unit}`)];
-  const rows = entries.map(e => { const n = entryNutrients(e); return [e.date, e.meal, e.food.name, e.food.brand, e.food.source, e.qty, e.unit, round2(e.grams), ...NUTRIENTS.map(x => round2(n[x.key]))]; });
+  const head = ['date', 'meal', 'food', 'brand', 'source', 'amount', 'unit', 'grams', 'group', ...NUTRIENTS.map(n => `${n.key}_${n.unit}`)];
+  const rows = entries.map(e => { const n = entryNutrients(e); return [e.date, e.meal, e.food.name, e.food.brand, e.food.source, e.qty, e.unit, round2(e.grams), e.groupId || '', ...NUTRIENTS.map(x => round2(n[x.key]))]; });
   download(`daily-plate-entries-${todayStr()}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv');
 }
 
