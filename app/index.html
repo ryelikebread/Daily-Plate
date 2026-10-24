@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily Plate</title>
+<meta name="description" content="Local-first food diary: log meals, track nutrients, archive every day.">
+<meta name="theme-color" content="#2f7d5b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Daily Plate">
+<meta name="format-detection" content="telephone=no">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Daily Plate</h1>
+  <nav class="tabs" role="tablist">
+    <button data-tab="diary" class="active">Diary</button>
+    <button data-tab="foods">Foods</button>
+    <button data-tab="trends">Trends</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+</header>
+
+<div id="reminder-banner" class="banner" hidden>
+  <span id="reminder-text">You haven't finished today's log.</span>
+  <button id="reminder-go" class="small">Open today</button>
+  <button id="reminder-dismiss" class="small ghost">Later</button>
+</div>
+
+<main>
+  <!-- DIARY -->
+  <section id="tab-diary" class="tab active">
+    <div class="datebar">
+      <button id="prev-day" aria-label="Previous day">&larr;</button>
+      <input type="date" id="diary-date">
+      <button id="next-day" aria-label="Next day">&rarr;</button>
+      <button id="today-btn" class="small ghost">Today</button>
+    </div>
+
+    <div class="card summary" id="day-summary"></div>
+    <div id="meals"></div>
+
+    <div class="card">
+      <label for="day-note">Day notes</label>
+      <textarea id="day-note" rows="2" placeholder="How did today go? (optional)"></textarea>
+      <div class="row">
+        <label class="inline">Body weight <input type="number" id="day-weight" step="0.1" min="0" style="width:6em"> <span class="unit-weight">kg</span></label>
+        <label class="inline"><input type="checkbox" id="day-complete"> Day complete</label>
+      </div>
+      <div class="row">
+        <button id="copy-yesterday" class="small ghost">Copy yesterday's food</button>
+      </div>
+    </div>
+
+    <details class="card">
+      <summary>All nutrients for this day</summary>
+      <div id="nutrient-table"></div>
+    </details>
+  </section>
+
+  <!-- FOODS -->
+  <section id="tab-foods" class="tab">
+    <div class="row">
+      <button id="new-food" class="primary">+ Custom food</button>
+      <button id="new-recipe">+ Recipe</button>
+    </div>
+    <input type="search" id="foods-filter" placeholder="Filter your foods">
+    <div id="foods-list"></div>
+  </section>
+
+  <!-- TRENDS -->
+  <section id="tab-trends" class="tab">
+    <div class="row">
+      <label class="inline">Range
+        <select id="trend-range">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last year</option>
+        </select>
+      </label>
+      <label class="inline">Show
+        <select id="trend-nutrient"></select>
+      </label>
+    </div>
+    <div class="card" id="trend-stats"></div>
+    <div class="card"><div id="trend-chart" class="chart"></div></div>
+    <div class="card"><h3>Body weight</h3><div id="weight-chart" class="chart"></div></div>
+    <div class="card"><h3>Archive</h3><div id="archive-list"></div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="tab">
+    <div class="card" id="ios-install" hidden>
+      <h3>Install on iPhone</h3>
+      <p class="hint">In Safari, tap the Share button, then <strong>Add to Home Screen</strong>. Open Daily Plate from its icon: that keeps your data safe from Safari's cleanup and lets reminders show as notifications.</p>
+    </div>
+    <div class="card">
+      <h3>Daily goals</h3>
+      <div id="goals-form" class="grid2"></div>
+      <button id="save-goals" class="primary">Save goals</button>
+    </div>
+
+    <div class="card">
+      <h3>End-of-day reminder</h3>
+      <label class="inline"><input type="checkbox" id="rem-enabled"> Remind me</label>
+      <label class="inline">at <input type="time" id="rem-time" value="21:00"></label>
+      <label class="inline"><input type="checkbox" id="rem-meals"> Also nudge me at meal times</label>
+      <div class="row">
+        <input type="text" id="rem-meal-times" value="08:30,12:30,18:30" placeholder="08:30,12:30,18:30" style="width:14em" aria-label="Meal reminder times">
+      </div>
+      <div class="row">
+        <button id="rem-save" class="primary">Save reminder</button>
+        <button id="rem-test" class="ghost">Send test notification</button>
+        <button id="rem-ics" class="ghost">Download calendar reminder (.ics)</button>
+      </div>
+      <p class="hint">In-app reminders only fire while Daily Plate is open (a tab or installed app). For a reminder that always fires, import the .ics file into your calendar app.</p>
+    </div>
+
+    <div class="card">
+      <h3>Online food lookup</h3>
+      <label class="inline"><input type="checkbox" id="off-enabled" checked> Open Food Facts (packaged foods, barcodes)</label>
+      <label class="inline"><input type="checkbox" id="usda-enabled" checked> USDA FoodData Central</label>
+      <label>USDA API key <input type="text" id="usda-key" placeholder="DEMO_KEY"></label>
+      <p class="hint">Get a free key at api.data.gov/signup. DEMO_KEY works but is rate-limited.</p>
+      <label class="inline">Weight unit
+        <select id="weight-unit"><option value="kg">kg</option><option value="lb">lb</option></select>
+      </label>
+      <button id="save-lookup" class="primary">Save</button>
+    </div>
+
+    <div class="card">
+      <h3>Backup &amp; export</h3>
+      <div class="row">
+        <button id="export-json">Full backup (JSON)</button>
+        <button id="export-csv">Diary entries (CSV)</button>
+        <button id="export-daily-csv">Daily totals (CSV)</button>
+      </div>
+      <div class="row">
+        <label class="button-like">Restore backup<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+      </div>
+      <p class="hint" id="storage-status"></p>
+    </div>
+
+    <div class="card">
+      <h3>About</h3>
+      <p class="hint">Daily Plate keeps all data on this device (IndexedDB in your browser). Starter foods are approximate values from USDA's public-domain data. Version <span id="app-version"></span>.</p>
+    </div>
+  </section>
+</main>
+
+<!-- Add-food dialog -->
+<dialog id="add-dialog">
+  <form method="dialog" class="dialog-body" id="add-form">
+    <h2>Add to <span id="add-meal-name"></span></h2>
+    <div class="row">
+      <input type="search" id="add-search" placeholder="Search foods (e.g. oats, banana)" autocomplete="off">
+      <button type="button" id="add-online" class="small">Search online</button>
+    </div>
+    <div class="row">
+      <input type="text" id="add-barcode" placeholder="Barcode" inputmode="numeric" style="width:10em">
+      <button type="button" id="add-barcode-go" class="small">Look up</button>
+      <button type="button" id="add-scan" class="small ghost" hidden>Scan</button>
+      <button type="button" id="add-quick" class="small ghost">Quick add calories</button>
+    </div>
+    <video id="scan-video" playsinline hidden></video>
+    <div id="add-status" class="hint"></div>
+    <div id="add-results" class="results"></div>
+    <div class="row end"><button value="cancel">Close</button></div>
+  </form>
+</dialog>
+
+<!-- Amount dialog -->
+<dialog id="amount-dialog">
+  <form method="dialog" class="dialog-body" id="amount-form">
+    <h2 id="amount-title"></h2>
+    <div class="row">
+      <input type="number" id="amount-qty" step="any" min="0" value="1" style="width:6em" required>
+      <select id="amount-unit"></select>
+    </div>
+    <div class="row">
+      <label class="inline">Meal <select id="amount-meal"></select></label>
+    </div>
+    <div id="amount-preview" class="hint"></div>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary" id="amount-ok">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Food editor dialog -->
+<dialog id="food-dialog">
+  <form method="dialog" class="dialog-body" id="food-form">
+    <h2 id="food-dialog-title">Custom food</h2>
+    <label>Name <input type="text" id="food-name" required></label>
+    <label>Brand (optional) <input type="text" id="food-brand"></label>
+    <label>Barcode (optional) <input type="text" id="food-barcode" inputmode="numeric"></label>
+    <div class="row">
+      <label class="inline">Nutrition values are per
+        <input type="number" id="food-basis" value="100" step="any" min="0.01" style="width:5em"> g
+      </label>
+    </div>
+    <div id="food-nutrients" class="grid2"></div>
+    <h3>Serving sizes</h3>
+    <p class="hint">One per line as <code>label = grams</code>, e.g. <code>1 cup = 240</code></p>
+    <textarea id="food-servings" rows="3"></textarea>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary">Save food</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Recipe editor dialog -->
+<dialog id="recipe-dialog">
+  <form method="dialog" class="dialog-body" id="recipe-form">
+    <h2 id="recipe-dialog-title">Recipe</h2>
+    <label>Name <input type="text" id="recipe-name" required></label>
+    <label class="inline">Makes <input type="number" id="recipe-servings" value="4" min="0.1" step="any" style="width:5em"> servings</label>
+    <h3>Ingredients</h3>
+    <div id="recipe-ingredients"></div>
+    <div class="row">
+      <input type="search" id="recipe-search" placeholder="Add ingredient from your foods" autocomplete="off">
+    </div>
+    <div id="recipe-results" class="results"></div>
+    <div id="recipe-preview" class="hint"></div>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary">Save recipe</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Quick add dialog -->
+<dialog id="quick-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2>Quick add</h2>
+    <label>Description <input type="text" id="quick-name" value="Quick add"></label>
+    <div class="grid2">
+      <label>Calories <input type="number" id="quick-kcal" step="any" min="0"></label>
+      <label>Protein (g) <input type="number" id="quick-protein" step="any" min="0"></label>
+      <label>Carbs (g) <input type="number" id="quick-carbs" step="any" min="0"></label>
+      <label>Fat (g) <input type="number" id="quick-fat" step="any" min="0"></label>
+    </div>
+    <div class="row end">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok" class="primary">Add</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="nutrients.js"></script>
+<script src="starter-foods.js"></script>
+<script src="db.js"></script>
+<script src="lookup.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

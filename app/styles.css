@@ -1,0 +1,84 @@
+:root {
+  --bg: #f6f7f5; --card: #ffffff; --text: #1d2420; --muted: #66706a; --line: #dfe3df;
+  --accent: #2f7d5b; --accent-ink: #ffffff; --bad: #c2462e; --good: #2f7d5b; --track: #e8ece8;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #131715; --card: #1c211e; --text: #e7ece8; --muted: #9aa49e; --line: #2d3430;
+    --accent: #5cbf8f; --accent-ink: #0d1a13; --bad: #ef7b62; --good: #5cbf8f; --track: #2a312d; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.topbar { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); padding: calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left)); }
+.topbar h1 { font-size: 18px; margin: 0 0 6px; color: var(--accent); }
+.tabs { display: flex; gap: 4px; overflow-x: auto; }
+.tabs button { border: 0; background: none; padding: 8px 12px; border-bottom: 3px solid transparent; border-radius: 0; color: var(--muted); }
+.tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+main { max-width: 760px; margin: 0 auto; padding: 12px calc(16px + env(safe-area-inset-right)) calc(80px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+.tab { display: none; } .tab.active { display: block; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+h2 { font-size: 18px; margin: 0 0 10px; } h3 { font-size: 15px; margin: 0 0 8px; }
+button, .button-like { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; display: inline-block; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.ghost { background: transparent; }
+button.small { padding: 4px 10px; font-size: 13px; }
+button.icon { border: 0; background: none; color: var(--muted); padding: 4px 8px; }
+input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); max-width: 100%; }
+input[type=search], textarea, label > input[type=text] { width: 100%; }
+label { display: block; margin: 6px 0; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.row.end { justify-content: flex-end; }
+.row > input[type=search] { flex: 1; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 12px; }
+.grid2 input { width: 100%; }
+.hint { color: var(--muted); font-size: 13px; }
+.center { text-align: center; }
+.datebar { display: flex; gap: 6px; align-items: center; }
+.datebar input { flex: 1; min-width: 0; }
+.sum-head { display: flex; justify-content: space-around; text-align: center; margin-bottom: 6px; }
+.big { font-size: 22px; font-weight: 700; } .over { color: var(--bad); }
+.pbar { margin: 6px 0; }
+.pbar-label { display: flex; justify-content: space-between; font-size: 13px; }
+.pbar-track { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.pbar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.pbar-fill.bad { background: var(--bad); }
+.meal-head { display: flex; align-items: center; gap: 8px; } .meal-head h3 { margin: 0; flex: 1; }
+.entry { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.entry-main { flex: 1; min-width: 0; cursor: pointer; overflow-wrap: anywhere; }
+.entry-kcal { font-weight: 600; }
+.empty { padding: 6px 0; }
+.results { max-height: 50vh; overflow-y: auto; }
+.result { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; margin: 4px 0; gap: 2px; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--track); color: var(--muted); margin-left: 4px; white-space: nowrap; }
+.tag-recipe, .tag-custom { background: var(--accent); color: var(--accent-ink); }
+.food-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ntable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ntable th, .ntable td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--line); }
+.ntable tr.click { cursor: pointer; } .ntable tr.click:hover { background: var(--track); }
+dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--text); width: min(560px, calc(100vw - 24px)); padding: 0; }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+.dialog-body { padding: 16px; max-height: 85vh; overflow-y: auto; }
+.chart svg { width: 100%; height: auto; }
+.chart .bar { fill: var(--accent); } .chart .bar.over { fill: var(--bad); }
+.chart .goal { stroke: var(--muted); stroke-dasharray: 4 4; }
+.chart .baseline { stroke: var(--line); }
+.chart .axis { fill: var(--muted); font-size: 11px; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; } .chart .dot { fill: var(--accent); }
+.banner { background: var(--accent); color: var(--accent-ink); padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.banner span { flex: 1; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; z-index: 20; max-width: calc(100vw - 32px); }
+#scan-video { width: 100%; border-radius: 8px; }
+details summary { cursor: pointer; font-weight: 600; }
+code { font-size: 12px; }
+
+/* iPhone: 16px inputs stop Safari zooming in on focus; bigger tap targets */
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: transparent; }
+input, select, textarea { font-size: 16px; }
+@media (pointer: coarse) {
+  button { min-height: 40px; }
+  button.small { min-height: 34px; }
+  button.icon { min-width: 40px; }
+}
+[hidden] { display: none !important; }
