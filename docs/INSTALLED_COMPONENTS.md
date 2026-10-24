@@ -15,7 +15,8 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/index.html` | Page layout: the four tabs (Diary, Foods, Trends, Settings) and the pop-up dialogs. |
 | `app/styles.css` | Look and feel, light and dark mode, phone-sized layout. |
 | `app/app.js` | Main logic: diary, adding food, amounts, custom foods, recipes, trends/charts, goals, reminders, export/import. |
-| `app/db.js` | Small wrapper around the browser's IndexedDB database. |
+| `app/db.js` | Small wrapper around the browser's IndexedDB database; records change times and deletions so sync can merge. |
+| `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
 | `app/lookup.js` | Online search: Open Food Facts (text + barcode) and USDA FoodData Central. Converts results to the app's per-100 g format. |
 | `app/nutrients.js` | The 14 tracked nutrients, their units and default goals, and the four meals. |
 | `app/starter-foods.js` | 24 common whole foods built in so the app is useful offline on day one. |
@@ -25,6 +26,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/apple-touch-icon.png` | 180×180 Home Screen icon for iPhone/iPad. |
 | `app/icon-192.png`, `app/icon-512.png` | Install icons for Android/Chrome. |
 | `tests/smoke.test.js` | Automated end-to-end test (developer use only). |
+| `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
 | `docs/USER_GUIDE.md` | How to run and use the app. |
 | `docs/INSTALLED_COMPONENTS.md` | This file. |
 
@@ -34,8 +36,8 @@ When you open the app, the browser creates:
 
 | Item | Name | Contents |
 |---|---|---|
-| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today). |
-| Cache Storage | `daily-plate-v2` | Copies of the app's own files for offline use. No personal data. |
+| IndexedDB database | `daily-plate` | `foods` (your foods, recipes, saved lookups, starter foods), `entries` (every diary item with a snapshot of its nutrition), `days` (notes, weight, complete flag), `settings` (goals, reminder times, lookup options, last backup time, which reminders already fired today, deletion records for sync, and, if sync is on, the GitHub token, passphrase and gist id for this device only). |
+| Cache Storage | `daily-plate-v3` | Copies of the app's own files for offline use. No personal data. |
 | Service worker | `sw.js` | Registered for the site's address. Only when served over http(s). |
 | Permissions (optional) | Notifications, Camera | Asked only when you save a reminder / press Scan. |
 | Persistent storage request | — | The app asks the browser not to auto-clear its data. The browser decides. |
@@ -49,7 +51,16 @@ To remove everything: browser settings → site data for the app's address → C
 | Open Food Facts (`world.openfoodfacts.org`) | Packaged foods, barcode lookup | Your search words or the barcode | Open Database Licence (ODbL) |
 | USDA FoodData Central (`api.nal.usda.gov`) | Generic and branded foods | Your search words and the API key | U.S. public domain |
 
-Both can be turned off in Settings. Nothing else is contacted.
+| GitHub Gist API (`api.github.com`, `gist.githubusercontent.com`) | Sync between devices (only if you turn it on) | Your data **encrypted on the device** (AES-256-GCM, key from your passphrase via PBKDF2-SHA-256, 250,000 rounds) and your GitHub token | Your own private data |
+
+Food lookups can be turned off in Settings; sync is off until you turn it on. Nothing else is contacted.
+
+## Sync details
+
+- Storage: one secret gist named "Daily Plate sync (encrypted)" containing `daily-plate-sync.json` in the GitHub account that owns the token. A secret gist is unlisted, not access-controlled, which is why the content is encrypted.
+- Token: fine-grained personal access token with only **Account → Gists: Read and write** (or a classic token with only the `gist` scope). Stored in this device's IndexedDB; excluded from JSON backups.
+- Merge rule: per record (food, diary entry, day), the newest change wins; deletions are remembered for a year so they reach every device. The calorie/nutrient goals sync; reminder times, lookup options and the token stay per device.
+- File contents are gzip-compressed before encryption to stay small.
 
 ## Outside the app
 
@@ -77,6 +88,7 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.2.0 (2026-10-24): encrypted sync between devices via a secret GitHub Gist.
 1.1.0 (2026-10-24): iPhone Home Screen support, fixed reminder banner always showing.
 1.0.0 (2026-10-24): first release.
 

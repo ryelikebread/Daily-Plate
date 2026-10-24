@@ -18,7 +18,7 @@
 </head>
 <body>
 <header class="topbar">
-  <h1>Daily Plate</h1>
+  <h1>Daily Plate <span id="sync-badge" class="sync-badge" hidden></span></h1>
   <nav class="tabs" role="tablist">
     <button data-tab="diary" class="active">Diary</button>
     <button data-tab="foods">Foods</button>
@@ -121,6 +121,27 @@
         <button id="rem-ics" class="ghost">Download calendar reminder (.ics)</button>
       </div>
       <p class="hint">In-app reminders only fire while Daily Plate is open (a tab or installed app). For a reminder that always fires, import the .ics file into your calendar app.</p>
+    </div>
+
+    <div class="card" id="sync-card">
+      <h3>Sync between devices</h3>
+      <p class="hint">Keeps your computer and iPhone in step through one encrypted file in your GitHub account. Set it up the same way on each device. Full steps are in the user guide.</p>
+      <div id="sync-setup">
+        <label>GitHub token (needs only "Gists: read and write")
+          <input type="password" id="sync-token" autocomplete="off" placeholder="github_pat_...">
+        </label>
+        <label>Sync passphrase (same on every device; it encrypts your data)
+          <input type="password" id="sync-pass" autocomplete="new-password" placeholder="at least 8 characters">
+        </label>
+        <button id="sync-on" class="primary">Turn on sync</button>
+      </div>
+      <div id="sync-active" hidden>
+        <div class="row">
+          <button id="sync-now" class="primary">Sync now</button>
+          <button id="sync-off" class="ghost">Turn off on this device</button>
+        </div>
+      </div>
+      <p class="hint" id="sync-status">Sync is off.</p>
     </div>
 
     <div class="card">
@@ -262,6 +283,7 @@
 <script src="starter-foods.js"></script>
 <script src="db.js"></script>
 <script src="lookup.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

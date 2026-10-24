@@ -24,7 +24,7 @@ button.ghost { background: transparent; }
 button.small { padding: 4px 10px; font-size: 13px; }
 button.icon { border: 0; background: none; color: var(--muted); padding: 4px 8px; }
 input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); max-width: 100%; }
-input[type=search], textarea, label > input[type=text] { width: 100%; }
+input[type=search], textarea, label > input[type=text], label > input[type=password] { width: 100%; }
 label { display: block; margin: 6px 0; }
 label.inline { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
@@ -82,3 +82,5 @@ input, select, textarea { font-size: 16px; }
   button.icon { min-width: 40px; }
 }
 [hidden] { display: none !important; }
+.sync-badge { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+.sync-badge.err { color: var(--bad); }

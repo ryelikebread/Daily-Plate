@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -50,6 +50,52 @@ async function init() {
   requestPersistence();
   setInterval(checkReminders, 60 * 1000);
   checkReminders();
+  Sync.init({ onStatus: showSyncStatus, afterMerge: reloadAfterSync });
+  renderSyncSettings();
+}
+
+// ---------- sync ----------
+async function reloadAfterSync() {
+  await loadFoods();
+  await loadSettings();
+  await renderDiary();
+  if ($('#tab-foods').classList.contains('active')) renderFoodsList();
+  if ($('#tab-trends').classList.contains('active')) renderTrends();
+}
+
+function showSyncStatus(text, isError) {
+  $('#sync-status').textContent = text;
+  const b = $('#sync-badge');
+  b.hidden = false;
+  b.textContent = isError ? '⚠ sync' : text.startsWith('Synced') ? '✓ synced' : text === 'Syncing…' ? '↻' : '';
+  b.classList.toggle('err', !!isError);
+  if (text === 'Sync is off') b.hidden = true;
+}
+
+async function renderSyncSettings() {
+  const c = await Sync.config();
+  const on = c.enabled && c.token && c.pass;
+  $('#sync-setup').hidden = !!on;
+  $('#sync-active').hidden = !on;
+  if (!on) { $('#sync-status').textContent = 'Sync is off.'; $('#sync-badge').hidden = true; }
+  else if (c.last && $('#sync-status').textContent === 'Sync is off.') $('#sync-status').textContent = 'Last synced ' + new Date(c.last).toLocaleString();
+}
+
+async function turnOnSync() {
+  const token = $('#sync-token').value.trim();
+  const pass = $('#sync-pass').value;
+  if (!token) return toast('Paste your GitHub token first.');
+  if (pass.length < 8) return toast('Use a passphrase of at least 8 characters.');
+  const res = await Sync.enable(token, pass);
+  if (res && res.error) {
+    await Sync.disable();
+    await renderSyncSettings();
+    $('#sync-status').textContent = 'Could not turn on sync: ' + res.error.message;
+  } else {
+    $('#sync-token').value = ''; $('#sync-pass').value = '';
+    await renderSyncSettings();
+    toast('Sync is on.');
+  }
 }
 
 async function loadFoods() {
@@ -130,6 +176,9 @@ function bindUI() {
   });
   $('#rem-ics').addEventListener('click', downloadIcs);
   $('#save-lookup').addEventListener('click', saveLookup);
+  $('#sync-on').addEventListener('click', turnOnSync);
+  $('#sync-now').addEventListener('click', () => Sync.syncNow());
+  $('#sync-off').addEventListener('click', async () => { await Sync.disable(); renderSyncSettings(); toast('Sync turned off on this device. Your data stays here.'); });
   $('#export-json').addEventListener('click', exportJson);
   $('#export-csv').addEventListener('click', exportEntriesCsv);
   $('#export-daily-csv').addEventListener('click', exportDailyCsv);
@@ -254,22 +303,22 @@ function amountLabel(e) {
 async function saveDay(patch) {
   const day = (await DB.get('days', state.date)) || { date: state.date };
   Object.assign(day, patch, { updatedAt: Date.now() });
-  await DB.put('days', day);
+  await DB.save('days', day);
   renderDiary();
 }
 
 async function deleteEntry(id) {
   const e = await DB.get('entries', id);
-  await DB.del('entries', id);
+  await DB.remove('entries', id);
   await renderDiary();
-  toast(`Removed ${e ? e.food.name : 'entry'}`, 'Undo', async () => { if (e) { await DB.put('entries', e); renderDiary(); } });
+  toast(`Removed ${e ? e.food.name : 'entry'}`, 'Undo', async () => { if (e) { await DB.save('entries', e); renderDiary(); } });
 }
 
 async function copyYesterday() {
   const prev = await entriesFor(shiftDate(state.date, -1));
   if (!prev.length) return toast('Nothing logged the day before.');
   const now = Date.now();
-  await DB.putMany('entries', prev.map((e, i) => ({ ...e, id: uid(), date: state.date, createdAt: now + i })));
+  await DB.saveMany('entries', prev.map((e, i) => ({ ...e, id: uid(), date: state.date, createdAt: now + i })));
   toast(`Copied ${prev.length} item(s).`);
   renderDiary();
 }
@@ -388,7 +437,7 @@ async function pickFood(food) {
   // online results are saved locally so they're available offline next time
   if (!state.foods.has(food.id)) {
     food.createdAt = Date.now();
-    await DB.put('foods', food);
+    await DB.save('foods', food);
     state.foods.set(food.id, food);
   }
   $('#add-dialog').close();
@@ -451,7 +500,7 @@ async function onAmountClose() {
     qty, unit, grams,
     updatedAt: Date.now(),
   };
-  await DB.put('entries', entry);
+  await DB.save('entries', entry);
   renderDiary();
 }
 
@@ -479,7 +528,7 @@ async function onQuickClose() {
   const per100 = {};
   ['kcal', 'protein', 'carbs', 'fat'].forEach(k => { const v = parseFloat($('#quick-' + k).value); if (Number.isFinite(v)) per100[k] = v; });
   if (per100.kcal == null) return toast('Enter calories for a quick add.');
-  await DB.put('entries', {
+  await DB.save('entries', {
     id: uid(), date: state.date, meal: state.addMeal, createdAt: Date.now(), foodId: null,
     food: { name: $('#quick-name').value || 'Quick add', brand: '', source: 'quick', per100 },
     qty: 1, unit: 'quick', grams: 100,
@@ -505,8 +554,8 @@ function renderFoodsList() {
   }));
   $$('#foods-list [data-del]').forEach(b => b.addEventListener('click', async () => {
     const f = state.foods.get(b.dataset.del);
-    await DB.del('foods', f.id); state.foods.delete(f.id); renderFoodsList();
-    toast(`Deleted ${f.name}. Past diary entries keep their values.`, 'Undo', async () => { await DB.put('foods', f); state.foods.set(f.id, f); renderFoodsList(); });
+    await DB.remove('foods', f.id); state.foods.delete(f.id); renderFoodsList();
+    toast(`Deleted ${f.name}. Past diary entries keep their values.`, 'Undo', async () => { await DB.save('foods', f); state.foods.set(f.id, f); renderFoodsList(); });
   }));
 }
 
@@ -550,7 +599,7 @@ async function onFoodClose() {
   };
   if (basis !== 100 && !food.servings.some(s => s.grams === basis)) food.servings.unshift({ label: '1 serving', grams: basis });
   if (food.source === 'starter' || food.source === 'off' || food.source === 'usda') food.edited = true;
-  await DB.put('foods', food);
+  await DB.save('foods', food);
   state.foods.set(food.id, food);
   renderFoodsList();
   toast(`Saved ${food.name}`);
@@ -629,7 +678,7 @@ async function onRecipeClose() {
     servings: [{ label: '1 serving', grams: Math.round((grams / servings) * 10) / 10 }, { label: 'whole recipe', grams }],
     updatedAt: Date.now(),
   };
-  await DB.put('foods', food);
+  await DB.save('foods', food);
   state.foods.set(food.id, food);
   renderFoodsList();
   toast(`Saved recipe ${food.name}`);
@@ -857,6 +906,7 @@ function csvCell(v) {
 async function exportJson() {
   const data = { app: 'daily-plate', version: APP_VERSION, exportedAt: new Date().toISOString() };
   for (const s of DB.STORES) data[s] = await DB.all(s);
+  data.settings = data.settings.filter(r => !DEVICE_ONLY_SETTINGS.includes(r.key)); // never export the sync token or passphrase
   download(`daily-plate-backup-${todayStr()}.json`, JSON.stringify(data, null, 2), 'application/json');
   await DB.setSetting('lastBackup', Date.now());
   storageStatus();
@@ -888,7 +938,12 @@ async function importJson(ev) {
     const data = JSON.parse(await file.text());
     if (data.app !== 'daily-plate') throw new Error('Not a Daily Plate backup file.');
     // merge: records with the same id are replaced, others kept
-    for (const s of DB.STORES) if (Array.isArray(data[s])) await DB.putMany(s, data[s]);
+    for (const s of DB.STORES) {
+      if (!Array.isArray(data[s])) continue;
+      const recs = s === 'settings' ? data[s].filter(r => !DEVICE_ONLY_SETTINGS.includes(r.key) && r.key !== 'tombstones') : data[s];
+      await DB.putMany(s, recs);
+    }
+    Sync.schedule(500);
     await loadFoods(); await loadSettings(); await renderAll();
     toast(`Restored backup from ${data.exportedAt || 'file'}.`);
   } catch (err) {

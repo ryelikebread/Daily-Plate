@@ -49,7 +49,7 @@ It works offline after the first open. Online food search needs a connection.
 
 ### Data on different devices
 
-Each device (and each browser, and each web address) keeps its **own separate copy** of your data. Your iPhone app does not see what you logged on your computer, and vice versa. To move data: Settings → **Full backup (JSON)** on the old device, send the file to the other device (AirDrop, Files, email), then Settings → **Restore backup** there. Restore merges, so nothing already on the target is lost. Pick one device as your main logger to keep it simple.
+Each device keeps its own copy of your data. To keep your computer and iPhone in step automatically, turn on **Sync** (section 7). Without sync, move data by hand with **Full backup** on one device and **Restore backup** on the other.
 
 ### Option C: double-click `index.html`
 
@@ -128,9 +128,54 @@ In-app reminders only fire while Daily Plate is open in a tab or as an installed
 
 ---
 
-## 7. Backup, export and restore
+## 7. Sync between computer and iPhone
 
-Your data lives in the browser's storage on that device. Clearing site data, or uninstalling the browser, deletes it. **Back up regularly** (e.g. weekly).
+Sync keeps every device's diary, foods, recipes, notes, weights and goals the same. It works through **one encrypted file stored in your own GitHub account** (a "secret gist"). There's no server to run and nobody else involved.
+
+### How private is it?
+
+- Your data is **encrypted on your device** with your sync passphrase before it's uploaded. GitHub (and anyone who somehow got the file) sees only scrambled text.
+- The passphrase never leaves your devices. **If you forget it, the synced copy can't be read** (your local data on each device is still fine; just set up sync again with a new passphrase).
+- The GitHub token is stored only on the device where you typed it. It's never included in backups or uploaded.
+
+### One-time setup (about 3 minutes)
+
+1. **Make a GitHub token** (on any device):
+   1. Go to <https://github.com/settings/personal-access-tokens/new> (Settings → Developer settings → Fine-grained tokens → Generate new token).
+   2. Name: `Daily Plate sync`. Expiration: choose a long one (e.g. 1 year), and put a reminder in your calendar to renew it.
+   3. Repository access: **Public repositories** (it needs no repo access).
+   4. Permissions → **Account permissions** → **Gists** → **Read and write**. Nothing else.
+   5. Generate, then copy the token (starts with `github_pat_`). Save it in your password manager; GitHub shows it only once.
+   - *Alternative:* a classic token with only the `gist` scope also works.
+2. **Pick a sync passphrase.** At least 8 characters; a few random words is good. Save it in your password manager too.
+3. **On your computer:** Daily Plate → Settings → *Sync between devices* → paste the token, type the passphrase → **Turn on sync**. It should say "Synced" and the header shows ✓ synced.
+4. **On your iPhone:** do the same in the Home Screen app, with the **same token and the exact same passphrase**. Anything already on the phone is merged with what's on the computer; nothing is lost.
+
+### Day to day
+
+- Sync runs by itself: when the app opens, a few seconds after every change, every 5 minutes while open, and when you come back to the app or reconnect to the internet.
+- **Sync now** forces it. The header shows ✓ synced, ↻ while syncing, or ⚠ sync if something's wrong (Settings shows the reason).
+- Works offline: changes wait on the device and upload next time you're online.
+- If the same item is changed on two devices, the most recent change wins. A deletion on one device removes the item everywhere.
+- **Turn off on this device** stops syncing and forgets the token and passphrase on that device. Your data stays on the device.
+
+### If something goes wrong
+
+| Message | What to do |
+|---|---|
+| "Wrong sync passphrase" | Type the passphrase exactly as on your other device (it's case-sensitive). |
+| "token is wrong or has expired" (401) | Make a new token (step 1), turn sync off and on again with it. |
+| "needs the Gists permission" (403/404) | The token is missing *Gists: Read and write*. Edit the token on GitHub or make a new one. |
+| "Offline" | Nothing to do; it syncs when you're back online. |
+
+You can see the encrypted file at <https://gist.github.com/> (it's called "Daily Plate sync (encrypted)"). Don't edit it by hand. Deleting it is safe: the next sync creates a fresh one from your device's data.
+
+---
+
+## 8. Backup, export and restore
+
+
+Your data lives in the browser's storage on that device. Clearing site data, or uninstalling the browser, deletes it. **Back up regularly** (e.g. weekly), even with sync on: sync copies mistakes (like a deletion) to every device, and a backup lets you undo them.
 
 - **Full backup (JSON)**: everything (foods, entries, days, settings). This is the file you restore from.
 - **Diary entries (CSV)**: one row per food logged, with all nutrients. Opens in Excel / Google Sheets.
@@ -141,7 +186,7 @@ The Settings page shows whether storage is "persistent" and when you last backed
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -153,7 +198,7 @@ The Settings page shows whether storage is "persistent" and when you last backed
 
 ---
 
-## 9. Running the automated test
+## 10. Running the automated tests
 
 From the `food-tracker` folder (needs Node.js and Playwright with Chromium):
 
@@ -162,4 +207,6 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-It starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
+`node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
+
+The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
