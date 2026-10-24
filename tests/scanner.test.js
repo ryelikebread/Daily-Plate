@@ -162,6 +162,15 @@ function serve() {
   await page.waitForFunction(() => /No barcode/.test(document.querySelector('#scan-status').textContent), null, { timeout: 15000 }).catch(() => {});
   check(/No barcode/.test(await page.textContent('#scan-status')), 'photo without a barcode says so');
 
+  // 7. Code missing from Open Food Facts is found by UPC in USDA Branded foods
+  page = await open(FAKE_CAMERA('0012345678905'));
+  await page.context().route('https://api.nal.usda.gov/**', r => r.fulfill({ json: { totalPages: 1, foods: [
+    { fdcId: 777, dataType: 'Branded', description: 'OTHER CEREAL', brandOwner: 'Acme', gtinUpc: '999999999999', foodNutrients: [{ nutrientNumber: '208', unitName: 'KCAL', value: 100 }] },
+    { fdcId: 778, dataType: 'Branded', description: 'USDA UPC CEREAL', brandOwner: 'Acme', gtinUpc: '012345678905', foodNutrients: [{ nutrientNumber: '208', unitName: 'KCAL', value: 380 }] }] } }));
+  await page.click('#qa-scan');
+  await page.waitForSelector('#amount-dialog[open]', { timeout: 15000 }).catch(() => {});
+  check((await page.textContent('#amount-title')).includes('Usda Upc Cereal'), 'UPC missing from Open Food Facts is found in USDA Branded: ' + await page.textContent('#amount-title'));
+
   check(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await browser.close();
   srv.close();

@@ -114,6 +114,8 @@ Other ways in the scanner:
 
 It reads the barcodes on packaged food: EAN-13, EAN-8, UPC-A, UPC-E (and Code 128). It works offline, but finding the product needs an internet connection unless you've scanned it before.
 
+**UPC lookup**: a scanned (or typed) UPC is checked against Open Food Facts first, then against the UPC records in USDA FoodData Central Branded foods (US packaged products). Your own saved foods with that barcode are matched first. Turn either source off in Settings if you prefer.
+
 If it says **camera access is blocked**: on iPhone open Settings → Apps → Safari → Camera → **Allow** (on older iOS: Settings → Safari → Camera), then tap Restart camera. On a computer, click the camera icon in the address bar and allow it.
 
 ### The food screen

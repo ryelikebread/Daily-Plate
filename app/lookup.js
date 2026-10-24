@@ -162,6 +162,14 @@ const Lookup = (() => {
     return { list: (j.foods || []).map(fdcToFood).filter(Boolean), more: (j.totalPages || 0) > page };
   }
 
+  // USDA Branded foods carry the package's UPC (gtinUpc). Search by the code
+  // and keep only an exact UPC match (leading zeros ignored).
+  async function usdaBarcode(code, apiKey) {
+    const strip = (x) => String(x || '').replace(/\D/g, '').replace(/^0+/, '');
+    const { list } = await usdaSearch(code, apiKey, ['Branded'], 1);
+    return list.find(f => f.barcode && strip(f.barcode) === strip(code)) || null;
+  }
+
   // ---------- combined search ----------
   const FILTERS = {
     all:         { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, keep: () => true },
@@ -220,10 +228,19 @@ const Lookup = (() => {
     return { results, more: ok.some(v => v.more), errors, fromCache: ok.length > 0 && ok.every(v => v.fromCache) };
   }
 
-  async function barcode(code) {
+  // Open Food Facts first, then USDA Branded (UPC). One source failing
+  // (offline, rate limit) doesn't stop the other.
+  async function barcode(code, settings = {}) {
     const hit = await DB.get('lookupCache', 'v2|barcode|' + code).catch(() => null);
     if (hit && hit.value) return hit.value;
-    const f = await offBarcode(code);
+    let f = null, firstError = null;
+    if (settings.offEnabled !== false) {
+      try { f = await offBarcode(code); } catch (e) { firstError = e; }
+    }
+    if (!f && settings.usdaEnabled !== false) {
+      try { f = await usdaBarcode(code, settings.usdaKey); } catch (e) { firstError = firstError || e; }
+    }
+    if (!f && firstError) throw firstError;
     if (f) DB.put('lookupCache', { key: 'v2|barcode|' + code, at: Date.now(), value: f }).catch(() => {});
     return f;
   }
@@ -247,5 +264,5 @@ const Lookup = (() => {
     return out.charAt(0).toUpperCase() + out.slice(1);
   }
 
-  return { search, barcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, FILTERS, CHAINS };
+  return { search, barcode, usdaBarcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, FILTERS, CHAINS };
 })();

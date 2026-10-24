@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -446,10 +446,14 @@ async function barcodeLookup(code) {
   if (local) return pickFood(local);
   $('#add-status').textContent = 'Looking up barcode ' + code + '…';
   try {
+    let lastError = null;
     for (const c of forms) {
-      const f = await Lookup.barcode(c);
-      if (f) return pickFood(f);
+      try {
+        const f = await Lookup.barcode(c, state.settings);
+        if (f) return pickFood(f);
+      } catch (err) { lastError = err; }
     }
+    if (lastError) throw lastError;
     $('#add-status').textContent = 'Barcode not found. You can create it as a custom food.';
     $('#add-results').innerHTML = `<button type="button" class="result" id="create-from-barcode">+ Create custom food with barcode ${esc(code)}</button>`;
     $('#create-from-barcode').addEventListener('click', () => { $('#add-dialog').close(); openFoodEditor(null, { barcode: code }); });

@@ -123,6 +123,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 
 ## Version
 
+1.7.0 (2026-10-24): barcode lookups now also search USDA FoodData Central Branded foods by UPC (gtinUpc, exact match, leading zeros ignored) when Open Food Facts doesn't have the code. Uses the same USDA key as search; either source failing no longer blocks the other.
+
 1.6.0 (2026-10-24): Report an issue gains "Add to GitHub list", a pre-filled new-issue link to ryelikebread/Daily-Plate (label food-data, created once on the repo). No token used; GitHub's own sign-in does the filing.
 
 1.5.0 (2026-10-24): full food screen (energy ring, targets, scores, 62 nutrients in groups), tap-to-learn nutrient explanations, favorites, remove from recents, report-an-issue flags, Edit a copy.
