@@ -80,7 +80,21 @@ In the add window (opened by **+ Add food** or a meal's **+ Add**):
 | Your foods | Start typing. Searches foods you've saved, recipes, and the built-in basics. With an empty box, it shows your most-used foods from the last 30 days. |
 | Online search | Type a food, brand or restaurant item and press **Enter** or **Search online**. Pick a filter first if you like (see *Brands and restaurants* below). Any food you pick is saved to your foods so it works offline next time. |
 | Barcode | Tap **📷 Scan** and point the camera at the barcode, or type the number and press **Look up**. See *Scanning barcodes* below. |
+| Custom food | Tap **+ Custom food**, or the **+ Create "…" as a custom food** row at the bottom of any search. Type in your own food and log it. See *Custom food* below. |
 | Quick add | Just calories (and optionally protein/carbs/fat) when you don't know the exact food. |
+
+### Custom food (your own food, logged right away)
+
+Use this for anything the search doesn't have: a home-cooked dish, a local bakery item, a label you're holding.
+
+1. In the add window, tap **+ Custom food**. Or type the food's name in the search box and tap **+ Create "…" as a custom food** under the results (the name is filled in for you). The same row appears after an online search finds nothing, and a barcode that isn't found offers **Create custom food with barcode…**.
+2. Enter the name and the numbers from the label or your best guess. Only the name is required; calories are the most useful. Set **Nutrition values are per ___ g** to the weight the numbers describe, e.g. 30 g for a label's "per serving" column, or the whole portion's weight for a homemade dish. Protein, carbs, fat and the rest are optional; **More nutrients** opens vitamins, minerals and more.
+3. Choose whether to keep it:
+   - **Save to my foods so I can pick it again** (ticked): the button reads **Save & log**. The food goes into the Foods tab with a **mine** tag and shows up in search next time.
+   - Unticked: the button reads **Log once**. Only today's diary entry gets the values; nothing is added to your foods.
+4. The food screen opens, as for any food. Pick the amount (it starts at 1 serving, the weight you entered), meal and time, then **Save**.
+
+**Cancel** takes you back to the add window without logging anything. A food you logged once can still be saved later by tapping its ☆ on the food screen. If you don't know the weight at all, **Quick add** is simpler: it logs calories with no food behind them.
 
 ### Brands and restaurants
 
@@ -126,7 +140,9 @@ You can turn MenuStat off in Settings > Online food lookup.
 
 Drinks count as food here, and the **Drinks** filter searches only drinks. A few things are specific to them.
 
-**Built-in drinks (work offline, no search needed).** About 30 drinks are built in: water, sparkling water, tea, coffee, cola (regular and diet), lemon-lime soda, orange juice, lemonade, sports and energy drinks, beer (regular and light), red and white wine, 80-proof spirits, hard cider, hard seltzer, a mixed margarita, and a few cans and bottles people buy often (Cayman Jack Margarita and Mango Margarita, White Claw, Bud Light Seltzer and Lime-A-Rita, Mike's Hard Lemonade, Coca-Cola, Diet Coke, Pepsi, Red Bull). Type any part of the name or brand — "cayman jack", "beer", "wine", "seltzer" — and it appears straight away, even with no signal. If you already had Daily Plate installed, these are added the next time you open it, and anything you deleted stays deleted.
+**Built-in drinks (work offline, no search needed).** About 30 drinks are built in: water, sparkling water, tea, coffee, cola (regular and diet), lemon-lime soda, orange juice, lemonade, sports and energy drinks, beer (regular and light), red and white wine, 80-proof spirits, hard cider, hard seltzer, a mixed margarita, and a few cans and bottles people buy often (Cayman Jack Margarita, Mango Margarita, Mexican Sunrise, Paloma and Agave Mule, White Claw, Bud Light Seltzer and Lime-A-Rita, Mike's Hard Lemonade, Coca-Cola, Diet Coke, Pepsi, Red Bull). Type any part of the name or brand — "cayman jack", "beer", "wine", "seltzer" — and it appears straight away, even with no signal. If you already had Daily Plate installed, these are added the next time you open it, and anything you deleted stays deleted.
+
+**Multipacks and variety packs.** The barcode on the outside of a 12-pack box is not the same as the one on each can. A variety pack's box code covers every flavor in it, so scanning it shows the flavors to pick from. For example, the Cayman Jack variety pack (UPC 815829010044) lists Margarita, Mexican Sunrise, Paloma and Agave Mule. Cayman Jack doesn't publish per-flavor nutrition in the open data, so Mexican Sunrise, Paloma and Agave Mule use the Margarita's numbers (about 220 kcal a can) until you type the can's own numbers in with Edit a copy. If a single can's barcode isn't found, choose **Create custom food with barcode** once, and that can will scan straight to your food from then on.
 
 **Fluid ounces.** On the food screen for a drink, the serving list includes **fluid ounces (US)**, **millilitres** and **cups** as well as the usual cans and bottles (a drink weighs about 1 g per ml, which is how volume becomes grams). So "12 fl oz" of a can logs exactly one can.
 
@@ -189,7 +205,7 @@ After picking a food, choose the amount: a serving size (e.g. "1 medium"), grams
 
 ## 3. The Foods tab (custom foods and recipes)
 
-- **+ Custom food**: enter a name, optional brand and barcode, and nutrition values. Set "values are per ___ g" to match the label (e.g. 30 g per serving); the app converts to per 100 g and adds that serving size for you. Extra serving sizes go one per line as `label = grams`, e.g. `1 cup = 240`.
+- **+ Custom food**: saves a food without logging it (to save *and* log, use **+ Custom food** in the add window instead). Enter a name, optional brand and barcode, and nutrition values. Set "values are per ___ g" to match the label (e.g. 30 g per serving); the app converts to per 100 g and adds that serving size for you. Extra serving sizes go one per line as `label = grams`, e.g. `1 cup = 240`.
 - **+ Recipe**: name it, set how many servings it makes, and add ingredients from your foods with gram amounts. The recipe becomes a food with "1 serving" and "whole recipe" sizes.
 - **Edit / Delete** any food. Deleting or editing a food never changes past diary entries: each entry keeps a copy of the nutrition values it was logged with, so your archive stays accurate.
 
@@ -310,7 +326,7 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-`node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub. `node tests/drinks.test.js` checks the built-in drinks, the Drinks filter, logging in fluid ounces and drinks whose labels list little or nothing.
+`node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub. `node tests/customfood.test.js` checks the add-window custom food: log once, save and log, the "Create … as a custom food" row, cancel, and the barcode-not-found path. `node tests/drinks.test.js` checks the built-in drinks, the Drinks filter, logging in fluid ounces and drinks whose labels list little or nothing.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
 

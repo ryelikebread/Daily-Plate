@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.14.0';
 
 // If the page is an older/newer copy than this script (a stale cached index.html),
 // a missing element gets a throw-away stand-in so the app degrades instead of crashing.
@@ -44,7 +44,7 @@ async function init() {
   if (!(await DB.getSetting('seeded', false))) {
     await DB.putMany('foods', starterFoodRecords());
     await DB.setSetting('seeded', true);
-    await DB.setSetting('seededDrinks', true);
+    await DB.setSetting('starterVersion', STARTER_VERSION);
   }
   await seedNewStarters();
   await loadFoods();
@@ -59,16 +59,23 @@ async function init() {
   renderSyncSettings();
 }
 
-// Adds built-in foods that shipped after this device was first set up (the
-// built-in drinks, in version 1.13.0). Foods you already have are left alone,
-// and anything you deleted stays deleted.
+// Adds built-in foods that shipped after this device was first set up (drinks in
+// 1.13.0, more Cayman Jack flavors and barcodes in 1.13.1), and gives existing
+// built-ins a barcode they gained. Anything you deleted stays deleted, and built-ins
+// you edited are left alone. Bump STARTER_VERSION when the built-in list changes.
+const STARTER_VERSION = 2;
 async function seedNewStarters() {
-  if (await DB.getSetting('seededDrinks', false)) return;
-  const have = new Set((await DB.all('foods')).map(f => f.id));
+  if ((await DB.getSetting('starterVersion', 0)) >= STARTER_VERSION) return;
+  const have = new Map((await DB.all('foods')).map(f => [f.id, f]));
   const deleted = await DB.getSetting('tombstones', {});
-  const add = starterFoodRecords().filter(f => !have.has(f.id) && !deleted['foods/' + f.id]);
+  const add = [];
+  for (const f of starterFoodRecords()) {
+    const old = have.get(f.id);
+    if (!old) { if (!deleted['foods/' + f.id]) add.push(f); }
+    else if (f.barcode && !old.barcode && old.source === 'starter' && old.name === f.name) add.push({ ...old, barcode: f.barcode });
+  }
   if (add.length) await DB.putMany('foods', add);
-  await DB.setSetting('seededDrinks', true);
+  await DB.setSetting('starterVersion', STARTER_VERSION);
 }
 
 // ---------- sync ----------
@@ -168,6 +175,8 @@ function bindUI() {
   $('#add-barcode-go').addEventListener('click', () => barcodeLookup($('#add-barcode').value.trim()));
   $('#add-quick').addEventListener('click', () => { $('#add-dialog').close(); openQuickAdd(); });
   $('#add-scan').addEventListener('click', scanBarcode);
+  $('#add-custom').addEventListener('click', () => openCustomFromAdd());
+  $('#food-keep').addEventListener('change', updateFoodOk);
   $('#food-scan').addEventListener('click', async () => { const c = await Scanner.scan(); if (c) $('#food-barcode').value = c; });
 
   // amount dialog
@@ -687,9 +696,10 @@ async function renderLocalResults() {
     list = [...state.foods.values()]
       .filter(f => words.every(w => (f.name + ' ' + (f.brand || '')).toLowerCase().includes(w)))
       .slice(0, 40);
-    $('#add-status').textContent = list.length ? '' : 'No saved foods match. Press Enter or "Search online".';
+    $('#add-status').textContent = list.length ? '' : 'No saved foods match. Press Enter or "Search online", or create it as a custom food.';
   }
   renderResults('#add-results', list, f => pickFood(f));
+  addCreateButton();
 }
 
 function renderResults(container, list, onPick) {
@@ -728,6 +738,25 @@ async function onlineSearch(nextPage = false) {
   $('#add-more').hidden = !res.more;
   $('#add-attribution').hidden = !search.results.length;
   renderResults('#add-results', search.results, f => pickFood(f));
+  addCreateButton();
+}
+
+// Last row of the search results: make the typed name into your own food and log it.
+function addCreateButton() {
+  const q = $('#add-search').value.trim();
+  if (!q) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'add-create';
+  b.className = 'result-create'; // not .result, so it never counts as a search hit
+  b.innerHTML = `<span><strong>+ Create “${esc(q)}” as a custom food</strong></span><span class="hint">Type in its calories and any nutrients, then log it</span>`;
+  b.addEventListener('click', () => openCustomFromAdd({ name: q }));
+  $('#add-results').appendChild(b);
+}
+
+// Custom food started from the add-food screen: fill it in, then pick the amount and log it.
+function openCustomFromAdd(prefill = {}) {
+  $('#add-dialog').close();
+  openFoodEditor(null, { ...prefill, log: true });
 }
 
 function filterLabel(f) {
@@ -744,8 +773,12 @@ async function barcodeLookup(code) {
   code = String(code || '').replace(/\D/g, '');
   if (!code) return;
   const forms = Scanner.variants(code); // UPC-A and EAN-13 spellings of the same code
-  const local = [...state.foods.values()].find(f => f.barcode && forms.includes(String(f.barcode)));
-  if (local) return pickFood(local);
+  const local = [...state.foods.values()].filter(f => f.barcode && forms.includes(String(f.barcode)));
+  if (local.length === 1) return pickFood(local[0]);
+  if (local.length > 1) { // a multipack's box code is shared by every flavor in it
+    $('#add-status').textContent = `Barcode ${code} is on a pack with ${local.length} different items. Pick the one you had:`;
+    return renderResults('#add-results', local, f => pickFood(f));
+  }
   $('#add-status').textContent = 'Looking up barcode ' + code + '…';
   try {
     let lastError = null;
@@ -760,7 +793,7 @@ async function barcodeLookup(code) {
     const bad = !Scanner.checkDigitOk(code) ? ` The check digit doesn't add up for ${code}, so the number may have a typo or be a store-only code (I also tried it with the digit fixed).` : '';
     $('#add-status').textContent = `Barcode not found. Tried ${tried.join(' and ') || 'no online sources (both are off in Settings)'} with ${forms.length} spelling${forms.length > 1 ? 's' : ''} of the code (${forms.join(', ')}).${bad} You can create it as a custom food.`;
     $('#add-results').innerHTML = `<button type="button" class="result" id="create-from-barcode">+ Create custom food with barcode ${esc(code)}</button>`;
-    $('#create-from-barcode').addEventListener('click', () => { $('#add-dialog').close(); openFoodEditor(null, { barcode: code }); });
+    $('#create-from-barcode').addEventListener('click', () => openCustomFromAdd({ barcode: code }));
   } catch (err) {
     $('#add-status').textContent = 'Lookup failed: ' + err.message;
   }
@@ -842,7 +875,7 @@ const DATASET_LABEL = { 'SR Legacy': 'USDA SR Legacy', 'Foundation': 'USDA Found
 function sourceText(f) {
   if (f.source === 'usda') return DATASET_LABEL[f.dataset] || 'USDA FoodData Central';
   if (f.source === 'menustat') return `MenuStat, NYC Health Dept (menu year ${f.menuYear || 'unknown'}${f.perServingOnly ? '; serving weight not listed' : ''})`;
-  return { off: 'Open Food Facts', starter: 'Built-in basics (USDA, rounded)', custom: 'Your custom food', recipe: 'Your recipe', quick: 'Quick add' }[f.source] || f.source;
+  return { off: 'Open Food Facts', starter: 'Built-in basics (USDA, rounded)', custom: f.oneOff ? 'Your custom food (logged once, not saved to your foods)' : 'Your custom food', recipe: 'Your recipe', quick: 'Quick add' }[f.source] || f.source;
 }
 
 // Star, brand, data source, nutrient count and any issue flag for the food screen.
@@ -869,6 +902,7 @@ async function ensureSavedFood() {
   const f = state.pendingFood;
   if (!state.foods.has(f.id)) {
     const rec = { ...f, createdAt: Date.now() };
+    delete rec.oneOff;
     await DB.save('foods', rec);
     state.foods.set(rec.id, rec);
   }
@@ -896,8 +930,9 @@ async function foodMenuAction(act) {
   }
   if (act === 'report') return openIssueDialog();
   if (act === 'copy') {
+    const logging = !state.editingEntry; // opened from adding food: log the copy next
     $('#amount-dialog').close();
-    return openFoodEditor(null, { copyFrom: f });
+    return openFoodEditor(null, { copyFrom: f, log: logging });
   }
 }
 
@@ -1061,11 +1096,16 @@ function renderFoodsList() {
 }
 
 let editingFood = null;
+let foodLogMode = false; // true when the editor was opened while adding food to the diary
 function openFoodEditor(food, prefill = {}) {
   editingFood = food;
+  foodLogMode = !food && !!prefill.log;
+  $('#food-log-opts').hidden = !foodLogMode;
+  $('#food-keep').checked = true;
+  updateFoodOk();
   const src = food || prefill.copyFrom || null; // "Edit a copy" pre-fills from another food
   $('#food-dialog-title').textContent = food ? 'Edit food' : prefill.copyFrom ? 'Edit a copy' : 'Custom food';
-  $('#food-name').value = food ? food.name : prefill.copyFrom ? prefill.copyFrom.name + ' (my copy)' : '';
+  $('#food-name').value = food ? food.name : prefill.copyFrom ? prefill.copyFrom.name + ' (my copy)' : prefill.name || '';
   $('#food-brand').value = src ? src.brand || '' : '';
   $('#food-barcode').value = src ? src.barcode || '' : prefill.barcode || '';
   $('#food-basis').value = 100;
@@ -1079,6 +1119,11 @@ function openFoodEditor(food, prefill = {}) {
       ${NUTRIENT_GROUPS.map(g => { const l = extra.filter(n => n.group === g); return l.length ? `<h4 class="rgroup">${g}</h4><div class="grid2">${l.map(input).join('')}</div>` : ''; }).join('')}</details>`;
   $('#food-servings').value = src ? (src.servings || []).map(s => `${s.label} = ${s.grams}`).join('\n') : '';
   $('#food-dialog').showModal();
+  if (foodLogMode && !prefill.copyFrom) $(prefill.name ? '[data-n="kcal"]' : '#food-name').focus();
+}
+
+function updateFoodOk() {
+  $('#food-ok').textContent = !foodLogMode ? 'Save food' : $('#food-keep').checked ? 'Save & log' : 'Log once';
 }
 
 function parseServings(text) {
@@ -1089,7 +1134,10 @@ function parseServings(text) {
 }
 
 async function onFoodClose() {
-  if ($('#food-dialog').returnValue !== 'ok') return;
+  const logging = foodLogMode;
+  foodLogMode = false;
+  if ($('#food-dialog').returnValue !== 'ok') { if (logging) $('#add-dialog').showModal(); return; }
+  const keep = !logging || $('#food-keep').checked;
   const basis = parseFloat($('#food-basis').value) || 100;
   const per100 = {};
   $$('#food-nutrients [data-n]').forEach(inp => {
@@ -1107,9 +1155,16 @@ async function onFoodClose() {
   };
   if (basis !== 100 && !food.servings.some(s => s.grams === basis)) food.servings.unshift({ label: '1 serving', grams: basis });
   if (food.source === 'starter' || food.source === 'off' || food.source === 'usda') food.edited = true;
+  if (!keep) {
+    // log once: the diary entry keeps its own copy of the values, nothing goes into "Your foods"
+    food.id = 'oneoff-' + uid();
+    food.oneOff = true; // only on this screen; dropped if you star it or flag it (that saves it)
+    return openAmountDialog(food, null);
+  }
   await DB.save('foods', food);
   state.foods.set(food.id, food);
   renderFoodsList();
+  if (logging) return openAmountDialog(food, null);
   toast(`Saved ${food.name}`);
 }
 
