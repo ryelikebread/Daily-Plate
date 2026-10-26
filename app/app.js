@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 
 // If the page is an older/newer copy than this script (a stale cached index.html),
 // a missing element gets a throw-away stand-in so the app degrades instead of crashing.
@@ -44,7 +44,9 @@ async function init() {
   if (!(await DB.getSetting('seeded', false))) {
     await DB.putMany('foods', starterFoodRecords());
     await DB.setSetting('seeded', true);
+    await DB.setSetting('seededDrinks', true);
   }
+  await seedNewStarters();
   await loadFoods();
   await loadSettings();
   bindUI();
@@ -55,6 +57,18 @@ async function init() {
   checkReminders();
   Sync.init({ onStatus: showSyncStatus, afterMerge: reloadAfterSync });
   renderSyncSettings();
+}
+
+// Adds built-in foods that shipped after this device was first set up (the
+// built-in drinks, in version 1.13.0). Foods you already have are left alone,
+// and anything you deleted stays deleted.
+async function seedNewStarters() {
+  if (await DB.getSetting('seededDrinks', false)) return;
+  const have = new Set((await DB.all('foods')).map(f => f.id));
+  const deleted = await DB.getSetting('tombstones', {});
+  const add = starterFoodRecords().filter(f => !have.has(f.id) && !deleted['foods/' + f.id]);
+  if (add.length) await DB.putMany('foods', add);
+  await DB.setSetting('seededDrinks', true);
 }
 
 // ---------- sync ----------
@@ -587,8 +601,7 @@ function progressBar(n, v) {
 
 function amountLabel(e) {
   if (e.unit === 'quick') return 'quick add';
-  if (e.unit === 'g') return `${fmt(e.qty)} g`;
-  if (e.unit === 'oz') return `${fmt(e.qty)} oz`;
+  if (UNIT_GRAMS[e.unit]) return `${fmt(e.qty)} ${e.unit === 'floz' ? 'fl oz' : e.unit}`;
   return `${e.qty === 1 ? '' : fmt(e.qty) + ' × '}${e.unit} (${fmt(e.grams)} g)`;
 }
 
@@ -684,7 +697,7 @@ function renderResults(container, list, onPick) {
   el.innerHTML = list.map((f, i) => `<button type="button" class="result" data-i="${i}">
       <span>${f.favorite ? '<span class="fav-mark">★</span> ' : ''}${f.issue ? '⚠ ' : ''}<strong>${esc(f.name)}</strong>${f.brand ? ` · ${esc(f.brand)}` : ''}
       ${f.kind === 'restaurant' ? '<span class="tag tag-restaurant">restaurant</span>' : ''}<span class="tag tag-${f.source}">${sourceLabel(f.source)}</span></span>
-      <span class="hint">${fmt(f.per100.kcal, 'kcal')} kcal ${f.perServingOnly ? 'per serving' : '/ 100 g'} · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}</span>
+      <span class="hint">${f.incomplete ? 'No nutrition listed — add it yourself' : `${fmt(f.per100.kcal, 'kcal')} kcal${f.estimated ? '*' : ''} ${f.perServingOnly ? 'per serving' : '/ 100 g'} · P ${fmt(f.per100.protein)} C ${fmt(f.per100.carbs)} F ${fmt(f.per100.fat)}`}${f.isDrink ? ' · drink' : ''}</span>
     </button>`).join('');
   el.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => onPick(list[+b.dataset.i])));
 }
@@ -708,6 +721,7 @@ async function onlineSearch(nextPage = false) {
   search.results.push(...res.results.filter(f => !seen.has(f.id)));
   let msg = `${search.results.length} online result(s)` + (res.fromCache ? ' (saved from an earlier search)' : '') + '.';
   if (!nextPage && res.sources && res.sources.length) msg += ` Searched: ${res.sources.join(', ')}${res.chain ? ` (recognised chain: ${res.chain})` : ''}.`;
+  if (!search.results.length && search.filter === 'drinks') msg += ' No drinks found. US alcohol labels do not have to list nutrition facts, so cans and bottles are often missing from the open data: try the built-in drinks (type "beer", "wine", "seltzer", "margarita"), or add it as a custom food.';
   if (!search.results.length && (search.filter === 'restaurants' || res.chain)) msg += ' Not found in the open data. MenuStat menus are historical snapshots and newer items may be missing. Try fewer words, the All filter, add it as a custom food, or import a food pack (Foods tab).';
   if (res.errors.length) msg += ' ' + res.errors.join('; ');
   $('#add-status').textContent = msg;
@@ -717,7 +731,7 @@ async function onlineSearch(nextPage = false) {
 }
 
 function filterLabel(f) {
-  return { all: 'all foods', brands: 'brands', restaurants: 'restaurants', basic: 'basic foods' }[f] || f;
+  return { all: 'all foods', brands: 'brands', restaurants: 'restaurants', drinks: 'drinks', basic: 'basic foods' }[f] || f;
 }
 
 function setSearchFilter(f) {
@@ -771,9 +785,17 @@ async function pickFood(food) {
 }
 
 // ---------- amount dialog ----------
-function unitOptions(food) {
+// Units that are not a named serving. Drinks are measured by volume, and 1 ml of
+// a drink weighs about 1 g, so volume units are offered for them.
+const UNIT_GRAMS = { g: 1, oz: 28.3495, floz: 29.5735, ml: 1, cup: 236.6 };
+const VOLUME_UNITS = ['floz', 'ml', 'cup'];
+const UNIT_LABEL = { g: 'grams', oz: 'ounces (weight)', floz: 'fluid ounces (US)', ml: 'millilitres', cup: 'cups (8 fl oz)' };
+
+function unitOptions(food, entry = state.editingEntry) {
   const opts = (food.servings || []).map(s => ({ value: 's:' + s.label, label: `${s.label} (${fmt(s.grams)} g)`, grams: s.grams }));
-  opts.push({ value: 'g', label: 'grams', grams: 1 }, { value: 'oz', label: 'ounces', grams: 28.3495 });
+  const volume = food.isDrink || (entry && VOLUME_UNITS.includes(entry.unit));
+  const units = [...(volume ? VOLUME_UNITS : []), 'g', 'oz'];
+  units.forEach(u => opts.push({ value: u, label: UNIT_LABEL[u], grams: UNIT_GRAMS[u] }));
   return opts;
 }
 
@@ -783,13 +805,13 @@ function openAmountDialog(food, entry) {
   $('#amount-title').textContent = food.name;
   $('#food-menu').hidden = true;
   renderFoodHeader();
-  const opts = unitOptions(food);
+  const opts = unitOptions(food, entry);
   $('#amount-unit').innerHTML = opts.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
   const mealOpts = entry && entry.meal && !MEALS.includes(entry.meal) ? [...MEALS, entry.meal] : MEALS;
   $('#amount-meal').innerHTML = mealOpts.map(m => `<option>${esc(m)}</option>`).join('');
   if (entry) {
     $('#amount-qty').value = entry.qty;
-    $('#amount-unit').value = ['g', 'oz'].includes(entry.unit) ? entry.unit : 's:' + entry.unit;
+    $('#amount-unit').value = UNIT_GRAMS[entry.unit] ? entry.unit : 's:' + entry.unit;
     $('#amount-meal').value = entry.meal;
     $('#amount-time').value = entry.time || '';
   } else {
@@ -833,8 +855,11 @@ function renderFoodHeader() {
   $('#fav-toggle').setAttribute('aria-pressed', String(fav));
   $('#menu-fav-label').textContent = fav ? 'Remove from favorites' : 'Add to favorites';
   const listed = NUTRIENTS.filter(n => !n.derived && f.per100 && f.per100[n.key] != null).length;
-  $('#amount-brand').textContent = [f.brand, f.kind === 'restaurant' ? 'restaurant' : ''].filter(Boolean).join(' · ');
-  $('#amount-meta').textContent = `${listed} listed nutrient${listed === 1 ? '' : 's'} · Data source: ${sourceText(f)}`;
+  $('#amount-brand').textContent = [f.brand, f.kind === 'restaurant' ? 'restaurant' : '', f.isDrink ? 'drink' : '', f.abv ? f.abv + '% ABV' : ''].filter(Boolean).join(' · ');
+  const caveat = f.incomplete ? ' · No nutrition facts in the data source (common for alcohol): use "Edit a copy" to type the label in'
+    : f.estimated ? ' · Calories worked out from the carbs, fat, protein and alcohol listed'
+    : '';
+  $('#amount-meta').textContent = `${listed} listed nutrient${listed === 1 ? '' : 's'} · Data source: ${sourceText(f)}${caveat}${f.note && f.source === 'starter' ? ' · ' + f.note : ''}`;
   $('#amount-flag').hidden = !saved.issue;
   $('#amount-flag').textContent = saved.issue ? `⚠ You flagged this food: ${saved.issue.note || 'no note'}` : '';
 }
@@ -985,7 +1010,7 @@ async function editEntry(id) {
   if (!e) return;
   if (e.unit === 'quick') return toast('Quick-add entries can be deleted and re-added.');
   const food = state.foods.get(e.foodId) || { id: e.foodId, ...e.food, servings: [] };
-  if (!['g', 'oz'].includes(e.unit) && !(food.servings || []).some(s => s.label === e.unit)) {
+  if (!UNIT_GRAMS[e.unit] && !(food.servings || []).some(s => s.label === e.unit)) {
     food.servings = [...(food.servings || []), { label: e.unit, grams: e.grams / e.qty }];
   }
   openAmountDialog(food, e);

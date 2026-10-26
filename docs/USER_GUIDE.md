@@ -84,13 +84,14 @@ In the add window (opened by **+ Add food** or a meal's **+ Add**):
 
 ### Brands and restaurants
 
-Above the results are four filters:
+Above the results are five filters:
 
 | Filter | Searches | Good for |
 |---|---|---|
 | **All** | Everything below | When you're not sure |
 | **Brands** | USDA Branded Foods (several hundred thousand U.S. products) + Open Food Facts (millions of products worldwide) | Packaged food: "Chobani vanilla", "Clif bar" |
 | **Restaurants** | USDA's fast-food and restaurant groups, USDA "from fast food / restaurant" foods, and products from ~80 known chains | Chain menu items: "Big Mac", "Taco Bell burrito" |
+| **Drinks** | All of the above, keeping only drinks | Soda, juice, coffee, beer, wine, spirits, hard seltzer, canned cocktails |
 | **Basic foods** | USDA generic foods | Whole foods and home cooking: "chicken thigh", "rice" |
 
 - Restaurant items show an orange **restaurant** tag, with the chain as the brand. Many come with real serving sizes like "1 item" or "1 sandwich".
@@ -120,6 +121,24 @@ You can turn MenuStat off in Settings > Online food lookup.
 **Photos**: on the food screen, tap **📷 Add photo** to take a picture or choose one from your library (several at once is fine). Photos are shrunk to save space, appear as small thumbnails on that diary row (tap them to view full size), and can be removed by editing the entry. They stay on the device where you added them: they are not synced between devices and are not in the backup file, so don't rely on them as your only copy. Deleting an entry deletes its photos (Undo brings them back).
 
 **Part of the same item**: on the second and later foods a box reads *Part of the same item as ...* (unticked by default, meaning a separate entry). Tick it for things like a burger plus toppings: they show as one diary line ("Burger + 2 more") with combined calories and macros. Tap the line to see the parts, edit or delete a single part, see combined energy and macros, or press **Ungroup parts**. The ✕ on the grouped line deletes the whole item (Undo is offered). Copy yesterday keeps groups together, and the CSV export has a group column.
+
+### Drinks, beer, wine and cocktails
+
+Drinks count as food here, and the **Drinks** filter searches only drinks. A few things are specific to them.
+
+**Built-in drinks (work offline, no search needed).** About 30 drinks are built in: water, sparkling water, tea, coffee, cola (regular and diet), lemon-lime soda, orange juice, lemonade, sports and energy drinks, beer (regular and light), red and white wine, 80-proof spirits, hard cider, hard seltzer, a mixed margarita, and a few cans and bottles people buy often (Cayman Jack Margarita and Mango Margarita, White Claw, Bud Light Seltzer and Lime-A-Rita, Mike's Hard Lemonade, Coca-Cola, Diet Coke, Pepsi, Red Bull). Type any part of the name or brand — "cayman jack", "beer", "wine", "seltzer" — and it appears straight away, even with no signal. If you already had Daily Plate installed, these are added the next time you open it, and anything you deleted stays deleted.
+
+**Fluid ounces.** On the food screen for a drink, the serving list includes **fluid ounces (US)**, **millilitres** and **cups** as well as the usual cans and bottles (a drink weighs about 1 g per ml, which is how volume becomes grams). So "12 fl oz" of a can logs exactly one can.
+
+**Alcohol.** Alcohol is one of the 62 tracked nutrients (7 kcal per gram), so beer, wine and cocktails count towards your day, and the drink's ABV shows on its food screen.
+
+**Why some cans used to come up empty.** In the US, alcohol is regulated by the TTB rather than the FDA, so a can of hard seltzer or a ready-made cocktail is not required to carry a Nutrition Facts panel, and sodas often list calories only per serving. Daily Plate used to drop anything without calories per 100 g, which is why a search for "Cayman Jack" returned nothing. Now it:
+
+- scales a per-serving calorie figure up to per 100 g;
+- works out calories from whatever is listed (carbs, fat, protein and alcohol), marking the number with a `*`;
+- still shows a can that lists nothing at all, labelled **"No nutrition listed — add it yourself"**. Open it, use the food screen's **⋯ > Edit a copy**, and type the numbers from the can; your copy is saved as your own food and syncs to your other devices.
+
+A calorie figure worked out from a partial label can be low (it only counts what the label lists), so for anything you drink often it is worth typing the can's own numbers once with Edit a copy.
 
 ### Scanning barcodes
 
@@ -291,7 +310,7 @@ npm install playwright && npx playwright install chromium
 node tests/smoke.test.js
 ```
 
-`node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub.
+`node tests/foodscreen.test.js` checks the food screen, explanations, favorites, recents, issue flags and Edit a copy. `node tests/database.test.js` checks brand/restaurant search, filters, paging and the offline cache. `node tests/scanner.test.js` checks camera and photo scanning with generated barcodes. `node tests/sync.test.js` checks sync between three simulated devices against a fake GitHub. `node tests/drinks.test.js` checks the built-in drinks, the Drinks filter, logging in fluid ounces and drinks whose labels list little or nothing.
 
 The smoke test starts its own local server, fakes the online lookups, and checks logging, search, barcodes, quick add, custom foods, recipes, copy-day, trends, all exports, restore and the reminder banner.
 

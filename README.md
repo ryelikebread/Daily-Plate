@@ -1,6 +1,6 @@
 # Daily Plate
 
-A clean-room rewrite of the food-tracker idea behind apps like MyFitnessPal and Cronometer, made with Claude Code. Log what you eat, track calories and 14 nutrients, keep a permanent archive, and get reminded to eat and to finish each day's log.
+A clean-room rewrite of the food-tracker idea behind apps like MyFitnessPal and Cronometer, made with Claude Code. Log what you eat and drink (including beer, wine and cocktails), track calories and 62 nutrients, keep a permanent archive, and get reminded to eat and to finish each day's log.
 
 **Use it:** https://ryelikebread.github.io/Daily-Plate/ (on iPhone: open in Safari → Share → Add to Home Screen)
 

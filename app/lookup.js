@@ -77,43 +77,124 @@ const Lookup = (() => {
 
   const RESTAURANT_CATEGORIES = ['fast foods', 'restaurant foods'];
 
+  // ---------- drinks ----------
+  // Drinks are easy to miss in open data: in the US, alcohol is regulated by the
+  // TTB rather than the FDA, so cans of beer, wine, hard seltzer and ready-made
+  // cocktails (e.g. Cayman Jack) often carry no Nutrition Facts panel at all, and
+  // soft drinks frequently list energy only per serving. Items like that used to be
+  // dropped on the floor. We now recognise drinks, work out their calories where we
+  // can, and still show them (marked) where the data source has no numbers.
+  const ALCOHOL_DENSITY = 0.789; // g of pure alcohol per ml, for % by volume -> g
+  const DRINK_WORDS = [
+    'beverage', 'drink', 'soda', 'soft drink', 'pop', 'cola', 'juice', 'nectar', 'lemonade', 'iced tea', 'ice tea',
+    'tea', 'coffee', 'espresso', 'latte', 'cappuccino', 'macchiato', 'mocha', 'frappe', 'cold brew', 'smoothie',
+    'milkshake', 'shake', 'kombucha', 'water', 'sparkling', 'seltzer', 'tonic', 'club soda', 'punch', 'cordial',
+    'squash', 'energy drink', 'sports drink', 'electrolyte', 'beer', 'ale', 'lager', 'stout', 'pilsner', 'ipa',
+    'cider', 'hard cider', 'malt beverage', 'wine', 'rose', 'champagne', 'prosecco', 'sake', 'sangria', 'spritz',
+    'cocktail', 'margarita', 'mojito', 'daiquiri', 'mai tai', 'hurricane', 'pina colada', 'long island iced tea',
+    'moscow mule', 'spiked', 'hard tea', 'hard lemonade', 'vodka', 'whiskey', 'whisky', 'bourbon', 'rum', 'gin',
+    'tequila', 'brandy', 'liqueur', 'schnapps', 'aperitif', 'vermouth', 'absinthe', 'mead', 'soju', 'shochu',
+  ];
+  const DRINK_RE = new RegExp('(^|[^a-z])(' + DRINK_WORDS.map(w => w.replace(/ /g, '[ -]?')).join('|') + ')($|[^a-z])', 'i');
+  // Categories used by the data sources for drinks.
+  const DRINK_CATEGORY_RE = /(beverage|drink|juice|water|soda|beer|wine|spirit|liquor|alcohol|tea|coffee|dairy and egg products.*milk)/i;
+
+  function isDrink(f) {
+    if (!f) return false;
+    if (f.isDrink != null) return !!f.isDrink;
+    return looksLikeDrink(f.name, f.brand, f.category || f.categories, f.abv);
+  }
+
+  function looksLikeDrink(name, brand, categories, abv) {
+    if (abv != null && abv > 0) return true;
+    if (categories && DRINK_CATEGORY_RE.test(String(categories))) return true;
+    return DRINK_RE.test(String(name || '') + ' ' + String(brand || ''));
+  }
+
+  // 4 kcal/g protein and carbs, 9 fat, 7 alcohol: enough to put a number on a
+  // drink whose label lists only some of those.
+  function kcalFromMacros(v) {
+    const parts = ['protein', 'carbs', 'fat', 'alcohol'].filter(k => v[k] != null);
+    if (!parts.length) return null;
+    return (v.protein || 0) * 4 + (v.carbs || 0) * 4 + (v.fat || 0) * 9 + (v.alcohol || 0) * 7;
+  }
+
+  // "12 fl oz", "355 ml", "1.5 L" -> grams (drinks are close enough to water)
+  const VOLUME_TO_G = { ml: 1, millilitre: 1, milliliter: 1, cl: 10, dl: 100, l: 1000, litre: 1000, liter: 1000, 'fl oz': 29.5735, floz: 29.5735, 'fl.oz': 29.5735, oz: 29.5735, pint: 473.176, quart: 946.353, gallon: 3785.41 };
+  function parseVolume(text) {
+    const m = String(text || '').trim().match(/^([\d.,]+)\s*([a-z. ]+)$/i);
+    if (!m) return null;
+    const qty = parseFloat(m[1].replace(',', '.'));
+    const unit = m[2].trim().toLowerCase().replace(/\.$/, '');
+    const factor = VOLUME_TO_G[unit];
+    return qty > 0 && factor ? Math.round(qty * factor * 100) / 100 : null;
+  }
+
   // ---------- Open Food Facts ----------
   // Minerals/vitamins are stored in grams per 100 g there.
-  function offToFood(p) {
+  function offToFood(p, opts = {}) {
     if (!p) return null;
     const n = p.nutriments || {};
     const g = (k) => (n[k] != null && n[k] !== '' ? Number(n[k]) : null);
-    let kcal = g('energy-kcal_100g');
-    if (kcal == null && g('energy_100g') != null) kcal = g('energy_100g') / 4.184; // kJ -> kcal
-    if (kcal == null) return null;
     // every nutrient Open Food Facts lists (grams per 100 g) converted to our units
-    const raw = { kcal };
+    const raw = {};
     for (const def of NUTRIENTS) {
       if (!def.off || def.key === 'kcal') continue;
       const v = g(def.off + '_100g');
       if (v != null) raw[def.key] = v * UNIT_FROM_G[def.unit];
     }
+    // Open Food Facts stores alcohol as % by volume.
+    const abv = g('alcohol_100g') != null ? g('alcohol_100g') : g('alcohol');
+    if (abv != null && abv > 0) raw.alcohol = abv * ALCOHOL_DENSITY;
+
+    const sq = parseFloat(p.serving_quantity);
+    const servingGrams = sq > 0 ? sq : parseVolume(p.serving_size);
+    let kcal = g('energy-kcal_100g');
+    if (kcal == null && g('energy_100g') != null) kcal = g('energy_100g') / 4.184; // kJ -> kcal
+    if (kcal == null && servingGrams) { // some drinks list energy only per serving
+      const ks = g('energy-kcal_serving');
+      const kj = g('energy_serving');
+      if (ks != null) kcal = (ks * 100) / servingGrams;
+      else if (kj != null) kcal = ((kj / 4.184) * 100) / servingGrams;
+    }
+    let estimated = false;
+    if (kcal == null) {
+      const fromMacros = kcalFromMacros(raw);
+      if (fromMacros != null) { kcal = fromMacros; estimated = true; }
+    }
+    const incomplete = kcal == null;
+    if (incomplete && !opts.keepIncomplete) return null;
+    raw.kcal = incomplete ? 0 : kcal;
     const per100 = clean(raw);
+
     const brand = (p.brands || '').split(',')[0].trim();
     const chain = chainOf(brand);
+    const name = p.product_name || p.generic_name || 'Unnamed product';
+    const categories = (p.categories_tags || []).join(' ') + ' ' + (p.categories || '');
+    const drink = looksLikeDrink(name, brand, categories, abv);
     const servings = [];
-    const sq = parseFloat(p.serving_quantity);
-    if (sq > 0) servings.push({ label: p.serving_size || `1 serving (${sq} g)`, grams: sq });
+    if (servingGrams) servings.push({ label: p.serving_size || `1 serving (${servingGrams} g)`, grams: servingGrams });
+    const pack = drink ? parseVolume(p.quantity) : null;
+    if (pack && pack >= 20 && pack <= 4000 && !servings.some(s => s.grams === pack)) {
+      servings.push({ label: `1 container (${p.quantity})`, grams: pack });
+    }
     return {
       id: 'off-' + (p.code || p._id || uid()),
-      name: p.product_name || p.generic_name || 'Unnamed product',
+      name,
       brand: chain || brand, source: 'off', kind: chain ? 'restaurant' : 'brand',
       barcode: p.code || '', per100, servings,
+      isDrink: drink, abv: abv != null ? abv : null,
+      estimated: estimated || undefined, incomplete: incomplete || undefined,
     };
   }
 
-  async function offSearch(q, page = 1) {
-    const fields = 'code,product_name,generic_name,brands,nutriments,serving_size,serving_quantity';
+  async function offSearch(q, page = 1, opts = {}) {
+    const fields = 'code,product_name,generic_name,brands,nutriments,serving_size,serving_quantity,categories_tags,quantity';
     const url = `${OFF_BASE}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=${PAGE_SIZE}&page=${page}&fields=${fields}`;
     const r = await fetch(url);
     if (!r.ok) throw new Error('Open Food Facts: HTTP ' + r.status);
     const j = await r.json();
-    const list = (j.products || []).map(offToFood).filter(Boolean);
+    const list = (j.products || []).map(x => offToFood(x, opts)).filter(Boolean);
     return { list, more: (j.count || 0) > page * PAGE_SIZE };
   }
 
@@ -122,7 +203,7 @@ const Lookup = (() => {
     if (r.status === 404) return null; // OFF answers 404 for barcodes it doesn't know
     if (!r.ok) throw new Error('Open Food Facts: HTTP ' + r.status);
     const j = await r.json().catch(() => ({}));
-    return j.status === 1 ? offToFood({ code, ...j.product }) : null;
+    return j.status === 1 ? offToFood({ code, ...j.product }, { keepIncomplete: true }) : null;
   }
 
   // ---------- USDA FoodData Central ----------
@@ -154,13 +235,18 @@ const Lookup = (() => {
       const atw = (f.foodNutrients || []).find(fn => ['957', '958'].includes(String(fn.nutrientNumber)));
       if (atw) per100.kcal = Number(atw.value);
     }
+    let estimated = false;
     if (per100.kcal == null) {
-      // branded labels sometimes list only kJ, or only macros
+      // branded labels sometimes list only kJ, or only macros (drinks: only alcohol)
       const kj = (f.foodNutrients || []).find(fn => String(fn.nutrientNumber) === '268');
       if (kj && kj.value != null) per100.kcal = Number(kj.value) / 4.184;
-      else if (per100.protein != null || per100.carbs != null || per100.fat != null) per100.kcal = (per100.protein || 0) * 4 + (per100.carbs || 0) * 4 + (per100.fat || 0) * 9;
+      else {
+        const fromMacros = kcalFromMacros(per100);
+        if (fromMacros != null) { per100.kcal = fromMacros; estimated = true; }
+      }
     }
-    if (per100.kcal == null) { if (!opts.keepIncomplete) return null; per100.kcal = 0; }
+    const incomplete = per100.kcal == null;
+    if (incomplete) { if (!opts.keepIncomplete) return null; per100.kcal = 0; }
 
     const servings = [];
     if (f.servingSize > 0 && /^(g|grm|gram)/i.test(f.servingSizeUnit || '')) {
@@ -191,6 +277,8 @@ const Lookup = (() => {
     return {
       id: 'usda-' + f.fdcId, dataset: f.dataType || '', name, brand: chain || (brand ? titleCase(brand) : ''), source: 'usda', kind, category,
       barcode: f.gtinUpc || '', per100: clean(per100), servings,
+      isDrink: looksLikeDrink(name, brand, category + ' ' + (f.brandedFoodCategory || ''), per100.alcohol),
+      estimated: estimated || undefined, incomplete: incomplete || undefined,
     };
   }
 
@@ -235,6 +323,7 @@ const Lookup = (() => {
     return {
       id: 'menustat-' + r.menu_item_id, dataset: 'MenuStat', name: String(r.item_name).trim(), brand, source: 'menustat', kind: 'restaurant',
       category: r.food_category || '', menuYear: r.year || '', note: r.item_description || '', barcode: '',
+      isDrink: looksLikeDrink(r.item_name, brand, r.food_category),
       per100,
       servings: known ? [{ label: `1 item (${r.serving_size} ${r.serving_size_unit})`, grams }] : [{ label: '1 serving as listed (weight not given)', grams: 100 }],
       perServingOnly: !known,
@@ -267,6 +356,7 @@ const Lookup = (() => {
     all:         { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, menustat: true, keep: () => true },
     brands:      { usda: ['Branded'], off: true, menustat: true, keep: f => f.kind === 'brand' || f.kind === 'restaurant' },
     restaurants: { usda: ['SR Legacy', 'Survey (FNDDS)', 'Branded'], off: true, menustat: true, keep: f => f.kind === 'restaurant' },
+    drinks:      { usda: ['Branded', 'SR Legacy', 'Survey (FNDDS)', 'Foundation'], off: true, menustat: true, keep: f => isDrink(f) },
     basic:       { usda: ['Foundation', 'SR Legacy', 'Survey (FNDDS)'], off: false, keep: f => f.kind === 'generic' },
   };
 
@@ -321,25 +411,29 @@ const Lookup = (() => {
     // chain spelled the way the databases write it ("mcdonalds big mac" -> "McDonald's big mac")
     const q2 = parsed.chain ? `${parsed.chain} ${parsed.rest}`.trim() : q;
     const jobs = []; const names = [];
+    // Keep items with no energy figure: for drinks (US alcohol especially) that is
+    // normal, and showing the product beats hiding it. Non-drinks are dropped below.
+    const opts = { keepIncomplete: true };
     if (settings.usdaEnabled !== false && F.usda.length) {
       names.push('USDA');
-      jobs.push(cached(`v3|usda|${F.usda.join('+')}|${page}|${q2.toLowerCase()}`, () => usdaSearch(q2, settings.usdaKey, F.usda, page)));
+      jobs.push(cached(`v4|usda|${F.usda.join('+')}|${page}|${q2.toLowerCase()}`, () => usdaSearch(q2, settings.usdaKey, F.usda, page, opts)));
     }
     if (settings.offEnabled !== false && F.off) {
       names.push('Open Food Facts');
-      jobs.push(cached(`v3|off|${page}|${q2.toLowerCase()}`, () => offSearch(q2, page)));
+      jobs.push(cached(`v4|off|${page}|${q2.toLowerCase()}`, () => offSearch(q2, page, opts)));
     }
     if (settings.menustatEnabled !== false && F.menustat) {
       names.push('MenuStat');
-      jobs.push(cached(`v3|menustat|${page}|${q2.toLowerCase()}`, () => menustatSearch(parsed, page)));
+      jobs.push(cached(`v4|menustat|${page}|${q2.toLowerCase()}`, () => menustatSearch(parsed, page)));
     }
     if (!jobs.length) return { results: [], more: false, errors: ['Online lookup is turned off in Settings.'], sources: [] };
     const settled = await Promise.allSettled(jobs);
     const ok = settled.filter(r => r.status === 'fulfilled').map(r => r.value);
     const errors = settled.map((r, i) => (r.status === 'rejected' ? `${names[i]}: ${r.reason.message.replace(/^(USDA|Open Food Facts|MenuStat): /, '')}` : null)).filter(Boolean);
     // lists: USDA, Open Food Facts, MenuStat; interleaved so the first screen shows a bit of each
-    let results = interleave(ok.map(v => v.list.filter(F.keep)));
+    let results = interleave(ok.map(v => v.list.filter(f => F.keep(f) && (!f.incomplete || isDrink(f)))));
     if (parsed.chain || filter === 'restaurants') results = rank(results, parsed);
+    if (filter === 'drinks') results = results.sort((a, b) => (a.incomplete ? 1 : 0) - (b.incomplete ? 1 : 0));
     return { results, more: ok.some(v => v.more), errors, fromCache: ok.length > 0 && ok.every(v => v.fromCache), sources: names, chain: parsed.chain };
   }
 
@@ -377,5 +471,5 @@ const Lookup = (() => {
     return out.charAt(0).toUpperCase() + out.slice(1);
   }
 
-  return { search, parseQuery, menustatSearch, menustatToFood, barcode, usdaBarcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, FILTERS, CHAINS };
+  return { search, parseQuery, menustatSearch, menustatToFood, barcode, usdaBarcode, offSearch, offBarcode, usdaSearch, offToFood, fdcToFood, chainOf, isDrink, looksLikeDrink, parseVolume, FILTERS, CHAINS, DRINK_WORDS };
 })();
