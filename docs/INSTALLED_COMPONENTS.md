@@ -35,6 +35,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `tests/database.test.js` | Automated test of brand/restaurant search, filters, paging, serving sizes and offline cache (developer use only). |
 | `tests/scanner.test.js` | Automated scanner test with generated barcodes and a fake camera (developer use only). |
 | `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
+| `tests/customfood.test.js` | Automated test of creating and logging a custom food from the add window (log once, save & log, search row, barcode miss) (developer use only). |
 | `tests/drinks.test.js` | Automated test of built-in drinks, the Drinks filter, fluid-ounce logging and drinks with incomplete labels (developer use only). |
 | `docs/USER_GUIDE.md` | How to run and use the app. |
 | `docs/INSTALLED_COMPONENTS.md` | This file. |
@@ -138,6 +139,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 - Data on the iPhone is stored in that Home Screen app's own storage, separate from Safari and from any other device.
 
 ## Version
+
+1.14.0 (2026-10-26): custom food from the add window. **+ Custom food** button and a **+ Create "…" as a custom food** row under every search (`addCreateButton`, `openCustomFromAdd`); the barcode-not-found button now uses the same flow. The food editor has a logging mode (`foodLogMode`): "Save to my foods" checkbox (`#food-keep`), button **Save & log** / **Log once**, then the amount screen opens. A logged-once food is never written to the `foods` store (id `oneoff-…`, `oneOff` flag shown only on the food screen); the diary entry keeps its own copy of the values as usual. Edit a copy opened while adding food also continues to logging. Cache name daily-plate-v17. No new libraries or online services. tests/customfood.test.js.
 
 1.13.1 (2026-10-26): barcode lookup lists every saved food that shares a barcode (multipack/variety-pack box codes) instead of taking the first. Built-in Cayman Jack Mexican Sunrise, Paloma and Agave Mule (approximate, Margarita-based figures), all four flavors carrying the variety-pack UPC 815829010044. Built-ins can carry a `barcode`. `seedNewStarters()` now uses setting `starterVersion` (STARTER_VERSION = 2, replaces `seededDrinks`): adds new built-ins and gives unedited existing built-ins a barcode they gained; deletions respected.
 

@@ -294,7 +294,11 @@ function serve() {
   await page.waitForSelector('#food-dialog[open]');
   check((await page.inputValue('#food-name')).endsWith('(my copy)') && (await page.inputValue('[data-n="b12"]')) === '0.2', 'Edit a copy pre-fills every nutrient');
   await page.fill('[data-n="sodium"]', '300');
+  check(await page.textContent('#food-ok') === 'Save & log', 'a copy made while adding food is saved and then logged');
   await page.click('#food-dialog button.primary');
+  await page.waitForSelector('#amount-dialog[open]');
+  check((await page.textContent('#amount-title')).endsWith('(my copy)'), 'the copy opens on the amount screen, ready to log');
+  await page.click('#amount-dialog .sheet-head button[value="cancel"]');
   await page.waitForTimeout(300);
   const foods = await page.evaluate(() => [...state.foods.values()].filter(f => /Rolls/.test(f.name)).map(f => [f.source, f.per100.sodium]));
   check(foods.some(([s, na]) => s === 'custom' && na === 300) && foods.some(([s, na]) => s === 'usda' && na === 494), 'copy is a separate custom food; original unchanged');

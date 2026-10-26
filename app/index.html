@@ -14,8 +14,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Daily Plate">
 <meta name="format-detection" content="telephone=no">
-<meta name="dp-version" content="1.13.1">
-<link rel="stylesheet" href="styles.css?v=1.13.1">
+<meta name="dp-version" content="1.14.0">
+<link rel="stylesheet" href="styles.css?v=1.14.0">
 </head>
 <body>
 <header class="topbar">
@@ -219,6 +219,7 @@
       <button type="button" id="add-barcode-go" class="small">Look up</button>
       <button type="button" id="add-scan" class="small primary">📷 Scan</button>
       <button type="button" id="add-quick" class="small ghost">Quick add calories</button>
+      <button type="button" id="add-custom" class="small ghost">+ Custom food</button>
     </div>
     <div id="add-status" class="hint"></div>
     <div id="add-results" class="results"></div>
@@ -324,9 +325,13 @@
     <h3>Serving sizes</h3>
     <p class="hint">One per line as <code>label = grams</code>, e.g. <code>1 cup = 240</code></p>
     <textarea id="food-servings" rows="3"></textarea>
+    <div id="food-log-opts" hidden>
+      <label class="check-row"><input type="checkbox" id="food-keep" checked> Save to my foods so I can pick it again</label>
+      <p class="hint" id="food-log-hint">Next you choose how much you had, the meal and the time.</p>
+    </div>
     <div class="row end">
       <button value="cancel" formnovalidate>Cancel</button>
-      <button value="ok" class="primary">Save food</button>
+      <button value="ok" class="primary" id="food-ok">Save food</button>
     </div>
   </form>
 </dialog>
@@ -389,14 +394,14 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="nutrients.js?v=1.13.1"></script>
-<script src="nutrient-info.js?v=1.13.1"></script>
-<script src="report.js?v=1.13.1"></script>
-<script src="starter-foods.js?v=1.13.1"></script>
-<script src="db.js?v=1.13.1"></script>
-<script src="lookup.js?v=1.13.1"></script>
-<script src="sync.js?v=1.13.1"></script>
-<script src="scanner.js?v=1.13.1"></script>
-<script src="app.js?v=1.13.1"></script>
+<script src="nutrients.js?v=1.14.0"></script>
+<script src="nutrient-info.js?v=1.14.0"></script>
+<script src="report.js?v=1.14.0"></script>
+<script src="starter-foods.js?v=1.14.0"></script>
+<script src="db.js?v=1.14.0"></script>
+<script src="lookup.js?v=1.14.0"></script>
+<script src="sync.js?v=1.14.0"></script>
+<script src="scanner.js?v=1.14.0"></script>
+<script src="app.js?v=1.14.0"></script>
 </body>
 </html>
