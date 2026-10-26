@@ -99,6 +99,8 @@ const OFF_PRODUCTS = [
   check(/2[0-4]\d/.test(kcal), '12 fl oz of the margarita is about 220 kcal: ' + kcal.replace(/\s+/g, ' '));
   await page.click('#amount-ok');
   await page.waitForSelector('#amount-dialog', { state: 'hidden' });
+  await page.waitForFunction(async () => (await DB.all('entries')).length > 0, null, { timeout: 5000 }).catch(() => {}); // saving finishes just after the screen closes
+  await page.waitForFunction(() => /fl oz/.test(document.querySelector('#meals').textContent), null, { timeout: 5000 }).catch(() => {});
   const logged = await page.evaluate(async () => (await DB.all('entries')).map(e => ({ unit: e.unit, qty: e.qty, grams: e.grams })));
   check(logged.length === 1 && logged[0].unit === 'floz' && Math.round(logged[0].grams) === 355, 'the entry is stored in fluid ounces: ' + JSON.stringify(logged[0]));
   check(/12 fl oz/.test(await page.textContent('#meals')), 'the diary shows "12 fl oz"');
