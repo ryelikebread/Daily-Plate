@@ -20,11 +20,11 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/vendor/zxing.min.js` | Bundled barcode-reading library (see Third-party code). Loaded only when you scan. |
 | `app/vendor/zxing-LICENSE.txt` | Its licence text. |
 | `app/sync.js` | Optional sync between devices through one encrypted secret GitHub Gist (merge, encryption, auto-sync). |
-| `app/lookup.js` | Online search: Open Food Facts (text + barcode), USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation) and MenuStat (NYC Open Data); chain nicknames/aliases, result ranking. Brands / Restaurants / Basic filters, restaurant-chain recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format. |
+| `app/lookup.js` | Online search: Open Food Facts (text + barcode), USDA FoodData Central (Branded, SR Legacy, Survey/FNDDS, Foundation) and MenuStat (NYC Open Data); chain nicknames/aliases, result ranking. Brands / Restaurants / Drinks / Basic filters, restaurant-chain and drink recognition, paging, and the on-device search cache. Converts results to the app's per-100 g format, including per-serving energy, calories derived from carbs/fat/protein/alcohol, % ABV to grams of alcohol, and container sizes as servings. |
 | `app/nutrients.js` | The 62 tracked nutrients (groups, units, default targets, USDA and Open Food Facts codes), derived values (net carbs, omega-3/6 totals) and the four meals. |
 | `app/nutrient-info.js` | The "what it is / why it matters" explanation for every nutrient, written for Daily Plate, with links to the government sources. |
 | `app/report.js` | The nutrient report (energy ring, macro and highlighted targets, scores, full grouped summary) and the explanation pop-up. |
-| `app/starter-foods.js` | 24 common whole foods built in so the app is useful offline on day one. |
+| `app/starter-foods.js` | 24 common whole foods plus about 30 drinks (soft drinks, juice, coffee/tea, beer, wine, spirits, hard seltzer, canned cocktails and a few well-known cans and bottles) built in so food and drink can be logged offline on day one. |
 | `app/sw.js` | Service worker: caches the app files so it opens offline; opens the diary when a reminder notification is tapped. |
 | `app/manifest.webmanifest` | Lets the browser install Daily Plate as an app (name, icon, colors). |
 | `app/icon.svg` | App icon (browsers). |
@@ -35,6 +35,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `tests/database.test.js` | Automated test of brand/restaurant search, filters, paging, serving sizes and offline cache (developer use only). |
 | `tests/scanner.test.js` | Automated scanner test with generated barcodes and a fake camera (developer use only). |
 | `tests/sync.test.js` | Automated sync test with three simulated devices and a fake GitHub (developer use only). |
+| `tests/drinks.test.js` | Automated test of built-in drinks, the Drinks filter, fluid-ounce logging and drinks with incomplete labels (developer use only). |
 | `docs/USER_GUIDE.md` | How to run and use the app. |
 | `docs/INSTALLED_COMPONENTS.md` | This file. |
 
@@ -71,10 +72,24 @@ Food lookups can be turned off in Settings; sync is off until you turn it on. No
 | Packaged / brand-name foods | USDA Branded Foods + Open Food Facts | Strong: hundreds of thousands of U.S. products plus millions worldwide; barcodes via Open Food Facts |
 | Restaurant chain items | USDA SR Legacy "Fast Foods" / "Restaurant Foods", USDA FNDDS "from fast food/restaurant", Open Food Facts entries from known chains | Partial: classic items from the biggest U.S. chains; newer and regional items often missing |
 | Generic foods | USDA Foundation, SR Legacy, FNDDS + 24 built-in basics | Strong |
+| Drinks, including alcohol | Open Food Facts + USDA (Branded, SR Legacy, FNDDS, Foundation) + MenuStat + ~30 built-in drinks | Soft drinks and juice: strong. Alcohol: patchy in the open data, because US alcohol labels need no Nutrition Facts panel (TTB, not FDA), so the built-in drinks and the derived-calorie handling below fill the gap |
 
 Sources considered and **not** used: commercial food-tracker apps (excluded by the clean-room rule; no scraping), Nutritionix (commercial licence), FatSecret Platform (free tier exists but must be called through a server you run, with your own API keys; see the option offered in the project thread), scraping chain websites (terms of use).
 
 The chain list in `lookup.js` holds only restaurant names, used to label results.
+
+## How drinks are handled (added 1.13.0)
+
+| Case | What the app does |
+|---|---|
+| Energy listed only per serving | Scales it to per 100 g using the serving weight or volume |
+| No energy, but carbs/fat/protein/alcohol listed | Works the calories out (4/9/4 kcal per g, 7 for alcohol) and marks the food `estimated` (shown with a `*`) |
+| % alcohol by volume | Converted to grams of alcohol per 100 g (×0.789, the density of ethanol) and stored as the `alcohol` nutrient |
+| No nutrition information at all (common for US alcohol) | Kept and marked `incomplete`: shown as "No nutrition listed — add it yourself" instead of being hidden, so Edit a copy can be used |
+| Container size ("12 fl oz", "355 ml") | Offered as a "1 container" serving |
+| Any drink | `isDrink` flag; fluid ounces, millilitres and cups appear as serving units (1 ml ≈ 1 g) |
+
+Drink recognition (`Lookup.isDrink` / `looksLikeDrink`) uses the data source's category, the presence of alcohol, and a list of drink words in `lookup.js`. Non-drinks with no calorie figure are still discarded, so ordinary searches are not filled with blank records.
 
 ## Nutrient explanations and targets
 
@@ -123,6 +138,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 - Data on the iPhone is stored in that Home Screen app's own storage, separate from Safari and from any other device.
 
 ## Version
+
+1.13.0 (2026-10-26): drinks. Drinks filter; `isDrink`/`abv` on foods; drink recognition in `lookup.js` (category, alcohol, drink-word list); Open Food Facts results now use per-serving energy, `alcohol_100g` (% ABV × 0.789), `categories_tags` and `quantity` (container size as a serving); calories derived from carbs/fat/protein/alcohol are marked `estimated`; items with no energy figure are kept when they are drinks and marked `incomplete` (search cache keys v4); fluid-ounce/millilitre/cup serving units for drinks (`UNIT_GRAMS`); about 30 built-in drinks in `starter-foods.js`, added to existing installs by `seedNewStarters()` (setting `seededDrinks`, deletions respected). tests/drinks.test.js.
 
 1.12.0 (2026-10-24): expanded restaurant coverage. New MenuStat source (NYC Open Data dataset qgc5-ecnb; fields per menu item; calories, fats, cholesterol, sodium, carbs, sugar, fiber, protein; serving weight when listed). Chain nickname parsing (`Lookup.parseQuery`), canonical chain spelling sent to USDA/Open Food Facts, result ranking (chain, name words), search cache keys v3, search status lists sources searched. Setting `menustatEnabled`. Food packs: import CSV/JSON (file or web address) and export your custom foods (Foods tab). tests/restaurants.test.js. Sources considered but not used: FatSecret/Nutritionix/Edamam (proprietary or need a server), scraping any app or chain site.
 

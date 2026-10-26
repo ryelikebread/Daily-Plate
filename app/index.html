@@ -14,8 +14,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Daily Plate">
 <meta name="format-detection" content="telephone=no">
-<meta name="dp-version" content="1.12.0">
-<link rel="stylesheet" href="styles.css?v=1.12.0">
+<meta name="dp-version" content="1.13.0">
+<link rel="stylesheet" href="styles.css?v=1.13.0">
 </head>
 <body>
 <header class="topbar">
@@ -204,13 +204,14 @@
   <form method="dialog" class="dialog-body" id="add-form">
     <h2>Add to <span id="add-meal-name"></span></h2>
     <div class="row">
-      <input type="search" id="add-search" placeholder="Food, brand or restaurant (e.g. oats, Chobani, Big Mac)" autocomplete="off">
+      <input type="search" id="add-search" placeholder="Food, drink, brand or restaurant (e.g. oats, Cayman Jack, Big Mac)" autocomplete="off">
       <button type="button" id="add-online" class="small">Search online</button>
     </div>
     <div class="chips" role="radiogroup" aria-label="Search in">
       <button type="button" class="chip active" data-filter="all">All</button>
       <button type="button" class="chip" data-filter="brands">Brands</button>
       <button type="button" class="chip" data-filter="restaurants">Restaurants</button>
+      <button type="button" class="chip" data-filter="drinks">Drinks</button>
       <button type="button" class="chip" data-filter="basic">Basic foods</button>
     </div>
     <div class="row">
@@ -388,14 +389,14 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="nutrients.js?v=1.12.0"></script>
-<script src="nutrient-info.js?v=1.12.0"></script>
-<script src="report.js?v=1.12.0"></script>
-<script src="starter-foods.js?v=1.12.0"></script>
-<script src="db.js?v=1.12.0"></script>
-<script src="lookup.js?v=1.12.0"></script>
-<script src="sync.js?v=1.12.0"></script>
-<script src="scanner.js?v=1.12.0"></script>
-<script src="app.js?v=1.12.0"></script>
+<script src="nutrients.js?v=1.13.0"></script>
+<script src="nutrient-info.js?v=1.13.0"></script>
+<script src="report.js?v=1.13.0"></script>
+<script src="starter-foods.js?v=1.13.0"></script>
+<script src="db.js?v=1.13.0"></script>
+<script src="lookup.js?v=1.13.0"></script>
+<script src="sync.js?v=1.13.0"></script>
+<script src="scanner.js?v=1.13.0"></script>
+<script src="app.js?v=1.13.0"></script>
 </body>
 </html>
