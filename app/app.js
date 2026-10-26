@@ -1,5 +1,5 @@
 // Daily Plate — main application logic.
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 
 // If the page is an older/newer copy than this script (a stale cached index.html),
 // a missing element gets a throw-away stand-in so the app degrades instead of crashing.
@@ -44,7 +44,7 @@ async function init() {
   if (!(await DB.getSetting('seeded', false))) {
     await DB.putMany('foods', starterFoodRecords());
     await DB.setSetting('seeded', true);
-    await DB.setSetting('seededDrinks', true);
+    await DB.setSetting('starterVersion', STARTER_VERSION);
   }
   await seedNewStarters();
   await loadFoods();
@@ -59,16 +59,23 @@ async function init() {
   renderSyncSettings();
 }
 
-// Adds built-in foods that shipped after this device was first set up (the
-// built-in drinks, in version 1.13.0). Foods you already have are left alone,
-// and anything you deleted stays deleted.
+// Adds built-in foods that shipped after this device was first set up (drinks in
+// 1.13.0, more Cayman Jack flavors and barcodes in 1.13.1), and gives existing
+// built-ins a barcode they gained. Anything you deleted stays deleted, and built-ins
+// you edited are left alone. Bump STARTER_VERSION when the built-in list changes.
+const STARTER_VERSION = 2;
 async function seedNewStarters() {
-  if (await DB.getSetting('seededDrinks', false)) return;
-  const have = new Set((await DB.all('foods')).map(f => f.id));
+  if ((await DB.getSetting('starterVersion', 0)) >= STARTER_VERSION) return;
+  const have = new Map((await DB.all('foods')).map(f => [f.id, f]));
   const deleted = await DB.getSetting('tombstones', {});
-  const add = starterFoodRecords().filter(f => !have.has(f.id) && !deleted['foods/' + f.id]);
+  const add = [];
+  for (const f of starterFoodRecords()) {
+    const old = have.get(f.id);
+    if (!old) { if (!deleted['foods/' + f.id]) add.push(f); }
+    else if (f.barcode && !old.barcode && old.source === 'starter' && old.name === f.name) add.push({ ...old, barcode: f.barcode });
+  }
   if (add.length) await DB.putMany('foods', add);
-  await DB.setSetting('seededDrinks', true);
+  await DB.setSetting('starterVersion', STARTER_VERSION);
 }
 
 // ---------- sync ----------
@@ -744,8 +751,12 @@ async function barcodeLookup(code) {
   code = String(code || '').replace(/\D/g, '');
   if (!code) return;
   const forms = Scanner.variants(code); // UPC-A and EAN-13 spellings of the same code
-  const local = [...state.foods.values()].find(f => f.barcode && forms.includes(String(f.barcode)));
-  if (local) return pickFood(local);
+  const local = [...state.foods.values()].filter(f => f.barcode && forms.includes(String(f.barcode)));
+  if (local.length === 1) return pickFood(local[0]);
+  if (local.length > 1) { // a multipack's box code is shared by every flavor in it
+    $('#add-status').textContent = `Barcode ${code} is on a pack with ${local.length} different items. Pick the one you had:`;
+    return renderResults('#add-results', local, f => pickFood(f));
+  }
   $('#add-status').textContent = 'Looking up barcode ' + code + '…';
   try {
     let lastError = null;

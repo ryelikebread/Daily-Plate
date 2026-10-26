@@ -129,7 +129,7 @@ const OFF_PRODUCTS = [
   const added = await page.evaluate(async () => {
     const drinks = (await DB.all('foods')).filter(f => f.id.startsWith('starter-drink-'));
     for (const d of drinks) await DB.del('foods', d.id);
-    await DB.setSetting('seededDrinks', false);
+    await DB.setSetting('starterVersion', 0);
     await seedNewStarters();
     return (await DB.all('foods')).filter(f => f.id.startsWith('starter-drink-')).length;
   });
@@ -137,11 +137,41 @@ const OFF_PRODUCTS = [
   const kept = await page.evaluate(async () => {
     const id = 'starter-drink-0';
     await DB.remove('foods', id);
-    await DB.setSetting('seededDrinks', false);
+    await DB.setSetting('starterVersion', 0);
     await seedNewStarters();
     return !(await DB.get('foods', id));
   });
   check(kept, 'a built-in drink you deleted stays deleted');
+
+  // an install from 1.13.0 (Margarita without the pack barcode) gets the barcode added
+  const patched = await page.evaluate(async () => {
+    const m = (await DB.all('foods')).find(f => f.brand === 'Cayman Jack' && f.name === 'Margarita');
+    delete m.barcode; await DB.put('foods', m);
+    await DB.setSetting('starterVersion', 1);
+    await seedNewStarters();
+    return (await DB.get('foods', m.id)).barcode;
+  });
+  check(patched === '815829010044', 'an existing built-in gains its barcode: ' + patched);
+
+  // ---- the Cayman Jack variety-pack barcode offers every flavor in the box ----
+  await page.reload();
+  await page.waitForSelector('#meals .meal');
+  await page.click('#qa-add');
+  await page.fill('#add-barcode', '815829010044');
+  await page.click('#add-barcode-go');
+  await page.waitForFunction(() => /different items/.test(document.querySelector('#add-status').textContent));
+  const flavors = await page.$$eval('#add-results .result', r => r.map(x => x.textContent.replace(/\s+/g, ' ')));
+  check(flavors.length === 4 && ['Margarita', 'Mexican Sunrise', 'Paloma', 'Agave Mule'].every(n => flavors.some(t => t.includes(n))), 'variety-pack UPC lists its 4 flavors: ' + flavors.map(t => t.split('·')[0].trim()).join(', '));
+  await page.click('#add-results .result:has-text("Mexican Sunrise")');
+  await page.waitForSelector('#amount-dialog[open]');
+  check((await page.textContent('#amount-title')) === 'Mexican Sunrise', 'picking a flavor opens it');
+  await page.click('#amount-dialog button[value="cancel"]');
+  // the same code typed as a 13-digit EAN also works
+  await page.click('#qa-add');
+  await page.fill('#add-barcode', '0815829010044');
+  await page.click('#add-barcode-go');
+  await page.waitForFunction(() => /different items/.test(document.querySelector('#add-status').textContent));
+  check((await page.$$('#add-results .result')).length === 4, 'the 13-digit spelling 0815829010044 finds the same pack');
 
   check(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await browser.close(); srv.close();

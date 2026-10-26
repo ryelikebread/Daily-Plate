@@ -35,6 +35,8 @@ const STARTER_FOODS = [
 //  - Generic entries: per 100 g, from USDA SR Legacy (U.S. public domain).
 //  - Branded entries: per 100 g worked out from the published label figures for
 //    one can/bottle. Approximate - check the can when precision matters.
+// UPC printed on the Cayman Jack 12-pack variety box (each can has its own code).
+const CJ_VARIETY_PACK = '815829010044';
 const STARTER_DRINKS = [
   ['Water, tap', {kcal:0,water:100}, [['1 cup (8 fl oz)',237],['1 bottle (16.9 fl oz)',500]]],
   ['Sparkling water, unsweetened', {kcal:0,water:100,sodium:1}, [['1 can (12 fl oz)',355]]],
@@ -54,7 +56,7 @@ const STARTER_DRINKS = [
   ['Hard seltzer (5% ABV)', {kcal:28,carbs:0.6,sugar:0.6,alcohol:3.9,sodium:3}, [['1 can (12 fl oz)',355]], {abv:5}],
   ['Hard cider (4.5% ABV)', {kcal:49,carbs:5.6,sugar:5.1,alcohol:3.6,sodium:2,potassium:19}, [['1 can/bottle (12 fl oz)',355]], {abv:4.5}],
   ['Margarita, mixed drink', {kcal:153,carbs:9.5,sugar:9,alcohol:14.8,sodium:21}, [['1 glass (4 fl oz)',118]], {abv:18}],
-  ['Margarita', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 bottle/can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, note:'Label values for one 12 fl oz bottle (about 220 kcal), spread over 100 g. Check the bottle.'}],
+  ['Margarita', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 bottle/can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, barcode:CJ_VARIETY_PACK, note:'Label values for one 12 fl oz bottle (about 220 kcal), spread over 100 g. Check the bottle.'}],
   ['Mango Margarita', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 bottle/can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, note:'Approximate: same as the original Margarita. Check the bottle.'}],
   ['Hard Seltzer, Black Cherry', {kcal:28,carbs:0.6,sugar:0.6,alcohol:3.9,sodium:3}, [['1 can (12 fl oz)',355]], {brand:'White Claw', abv:5, note:'Label values for one 12 fl oz can (100 kcal, 2 g carbs).'}],
   ['Hard Seltzer', {kcal:28,carbs:0.6,alcohol:3.9,sodium:3}, [['1 can (12 fl oz)',355]], {brand:'Bud Light Seltzer', abv:5, note:'Label values for one 12 fl oz can (100 kcal).'}],
@@ -65,6 +67,12 @@ const STARTER_DRINKS = [
   ['Pepsi', {kcal:41,carbs:11.1,sugar:11.1,sodium:8,caffeine:10}, [['1 can (12 fl oz)',368]], {brand:'Pepsi', note:'Label values: 150 kcal and 41 g sugar per 12 fl oz can.'}],
   ['Energy Drink, Original', {kcal:45,carbs:11,sugar:10.6,protein:0.4,sodium:40,caffeine:32}, [['1 can (8.4 fl oz)',248]], {brand:'Red Bull', note:'Label values: 110 kcal per 8.4 fl oz can.'}],
   ['Cold Brew Coffee, black', {kcal:1,carbs:0,caffeine:85}, [['1 cup (8 fl oz)',237]], {note:'Black coffee; caffeine varies a lot by brew.'}],
+  // The rest of the Cayman Jack variety pack (UPC on the 12-pack box, shared by every
+  // flavor in it). Per-flavor figures aren't in the open data: these use the
+  // Margarita's (about 220 kcal per 12 fl oz can). Check the can.
+  ['Mexican Sunrise', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, barcode:CJ_VARIETY_PACK, note:'Approximate: based on the Cayman Jack Margarita. Check the can, and use Edit a copy to put in its own numbers.'}],
+  ['Paloma', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, barcode:CJ_VARIETY_PACK, note:'Approximate: based on the Cayman Jack Margarita. Check the can, and use Edit a copy to put in its own numbers.'}],
+  ['Agave Mule', {kcal:62,carbs:4.8,sugar:4.5,alcohol:4.6,sodium:6}, [['1 can (12 fl oz)',355]], {brand:'Cayman Jack', abv:5.8, barcode:CJ_VARIETY_PACK, note:'Approximate: based on the Cayman Jack Margarita. Check the can, and use Edit a copy to put in its own numbers.'}],
 ];
 
 // Both lists become records the app stores on first run. Drinks carry isDrink so
@@ -80,6 +88,7 @@ function starterFoodRecords() {
     isDrink: extra.drink != null ? !!extra.drink : drinkByDefault,
     ...(extra.abv != null ? { abv: extra.abv } : {}),
     ...(extra.note ? { note: extra.note } : {}),
+    ...(extra.barcode ? { barcode: extra.barcode } : {}),
   }));
   return [...make('starter-', STARTER_FOODS, false), ...make('starter-drink-', STARTER_DRINKS, true)];
 }

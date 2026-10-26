@@ -24,7 +24,7 @@ What Daily Plate consists of, what each piece does, what it installs or stores, 
 | `app/nutrients.js` | The 62 tracked nutrients (groups, units, default targets, USDA and Open Food Facts codes), derived values (net carbs, omega-3/6 totals) and the four meals. |
 | `app/nutrient-info.js` | The "what it is / why it matters" explanation for every nutrient, written for Daily Plate, with links to the government sources. |
 | `app/report.js` | The nutrient report (energy ring, macro and highlighted targets, scores, full grouped summary) and the explanation pop-up. |
-| `app/starter-foods.js` | 24 common whole foods plus about 30 drinks (soft drinks, juice, coffee/tea, beer, wine, spirits, hard seltzer, canned cocktails and a few well-known cans and bottles) built in so food and drink can be logged offline on day one. |
+| `app/starter-foods.js` | 24 common whole foods plus about 30 drinks (incl. the Cayman Jack variety-pack flavors, sharing the box UPC; soft drinks, juice, coffee/tea, beer, wine, spirits, hard seltzer, canned cocktails and a few well-known cans and bottles) built in so food and drink can be logged offline on day one. |
 | `app/sw.js` | Service worker: caches the app files so it opens offline; opens the diary when a reminder notification is tapped. |
 | `app/manifest.webmanifest` | Lets the browser install Daily Plate as an app (name, icon, colors). |
 | `app/icon.svg` | App icon (browsers). |
@@ -138,6 +138,8 @@ Daily Plate was designed from general, publicly known food-tracker concepts (foo
 - Data on the iPhone is stored in that Home Screen app's own storage, separate from Safari and from any other device.
 
 ## Version
+
+1.13.1 (2026-10-26): barcode lookup lists every saved food that shares a barcode (multipack/variety-pack box codes) instead of taking the first. Built-in Cayman Jack Mexican Sunrise, Paloma and Agave Mule (approximate, Margarita-based figures), all four flavors carrying the variety-pack UPC 815829010044. Built-ins can carry a `barcode`. `seedNewStarters()` now uses setting `starterVersion` (STARTER_VERSION = 2, replaces `seededDrinks`): adds new built-ins and gives unedited existing built-ins a barcode they gained; deletions respected.
 
 1.13.0 (2026-10-26): drinks. Drinks filter; `isDrink`/`abv` on foods; drink recognition in `lookup.js` (category, alcohol, drink-word list); Open Food Facts results now use per-serving energy, `alcohol_100g` (% ABV × 0.789), `categories_tags` and `quantity` (container size as a serving); calories derived from carbs/fat/protein/alcohol are marked `estimated`; items with no energy figure are kept when they are drinks and marked `incomplete` (search cache keys v4); fluid-ounce/millilitre/cup serving units for drinks (`UNIT_GRAMS`); about 30 built-in drinks in `starter-foods.js`, added to existing installs by `seedNewStarters()` (setting `seededDrinks`, deletions respected). tests/drinks.test.js.
 
